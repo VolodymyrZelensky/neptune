@@ -1046,7 +1046,7 @@ void CMisc::ChatSpam(CTFPlayer* pLocal)
 			return;
 		}
 		
-		if (!pLocal->IsAlive() || pLocal->m_iTeamNum() <= 1 || pLocal->m_iClass() == TF_CLASS_UNDEFINED)
+		if (pLocal->m_iTeamNum() <= 1 || pLocal->m_iClass() == TF_CLASS_UNDEFINED)
 		{
 			m_tChatSpamTimer.Update();
 			return;
