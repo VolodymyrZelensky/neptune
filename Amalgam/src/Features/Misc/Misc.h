@@ -21,7 +21,7 @@ class CMisc
 	void AchievementSpam(CTFPlayer* pLocal);
 	void KillSay(int victim);
 	void AutoReply(int speaker, const char* text);
-	void VotekickResponse(int target);
+	void VotekickResponse(int target, int initiator = -1);
 	std::string ProcessTextReplacements(std::string text);
 
 	void CheatsBypass();
@@ -68,6 +68,17 @@ public:
 	//int m_iWishUpdaterate = -1;
 	bool m_bAntiAFK = false;
 	Timer m_tRandomVotekickTimer;
+
+private:
+
+	std::unordered_map<std::string, std::string> m_mAutoReplyTriggers;
+	void LoadAutoReplyConfig();
+
+	std::unordered_map<std::string, std::string> m_mVotekickResponses;
+	void LoadVotekickConfig();
+
+	int m_iVoteInitiator = -1;
+	int m_iVoteTarget = -1;
 };
 
 ADD_FEATURE(CMisc, Misc)
