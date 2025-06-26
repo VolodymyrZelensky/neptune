@@ -1134,7 +1134,7 @@ void CMisc::AutoReport()
 {
 	if (!Vars::Misc::Automation::AutoReport.Value)
 		return;
-	
+
 	static Timer reportTimer{};
 	if (!reportTimer.Run(5.0f))
 		return;
@@ -1142,40 +1142,43 @@ void CMisc::AutoReport()
 	static auto reportFunc = reinterpret_cast<void(*)(uint64_t, int)>(U::Memory.FindSignature("client.dll", "48 89 5C 24 ? 57 48 83 EC 60 48 8B D9 8B FA"));
 	if (!reportFunc)
 		return;
-	
+
 	if (!I::EngineClient || !I::EngineClient->IsInGame() || !I::EngineClient->IsConnected())
 		return;
-	
+
 	CTFPlayer* pLocal = H::Entities.GetLocal();
 	if (!pLocal)
 		return;
-	
+
 	for (int i = 1; i <= I::EngineClient->GetMaxClients(); i++)
 	{
 		if (i == I::EngineClient->GetLocalPlayer())
 			continue;
-		
+
 		CTFPlayer* pPlayer = reinterpret_cast<CTFPlayer*>(I::ClientEntityList->GetClientEntity(i));
 		if (!pPlayer || !pPlayer->IsAlive())
 			continue;
-		
+
 		PlayerInfo_t playerInfo{};
 		if (!I::EngineClient->GetPlayerInfo(i, &playerInfo))
 			continue;
-		
+
 		if (playerInfo.fakeplayer)
 			continue;
-		
-		if (F::PlayerUtils.HasTag(i, FRIEND_TAG) || F::PlayerUtils.HasTag(i, IGNORED_TAG))
+
+	// we were reporting our friends n shi... fixed.
+		if (H::Entities.IsFriend(i) ||
+			H::Entities.InParty(i) ||
+			F::PlayerUtils.IsIgnored(i) ||
+			F::PlayerUtils.HasTag(i, F::PlayerUtils.TagToIndex(FRIEND_IGNORE_TAG)) ||
+			F::PlayerUtils.HasTag(i, F::PlayerUtils.TagToIndex(BOT_IGNORE_TAG)))
 			continue;
-		
-		if (F::PlayerUtils.HasTag(i, PARTY_TAG))
-			continue;
-		
+
 		uint64_t steamID64 = ((uint64_t)1 << 56) | ((uint64_t)1 << 52) | ((uint64_t)1 << 32) | playerInfo.friendsID;
 		reportFunc(steamID64, 1);
 	}
 }
+
 
 std::string CMisc::ProcessTextReplacements(std::string text)
 {
