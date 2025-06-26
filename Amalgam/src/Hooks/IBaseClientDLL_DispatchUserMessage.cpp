@@ -5,8 +5,10 @@
 #include "../Features/NoSpread/NoSpreadHitscan/NoSpreadHitscan.h"
 #include "../Features/Misc/AutoVote/AutoVote.h"
 #include "../Features/Aimbot/AutoHeal/AutoHeal.h"
+#include "../Features/Players/PlayerUtils.h"
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+#include <algorithm>
 
 //#define DEBUG_VISUALS
 #ifdef DEBUG_VISUALS
@@ -28,9 +30,68 @@ MAKE_HOOK(IBaseClientDLL_DispatchUserMessage, U::Memory.GetVFunc(I::BaseClientDL
 
 	switch (type)
 	{
+	case SayText2:
+	{
+		msgData.Seek(0);
+		int speaker = msgData.ReadByte();
+		bool bWantsToChat = msgData.ReadByte();
+
+		char formatString[256];
+		msgData.ReadString(formatString, sizeof(formatString), true);
+
+		char speakerName[64];
+		msgData.ReadString(speakerName, sizeof(speakerName), true);
+
+		char actualMessage[256] = "";
+		msgData.ReadString(actualMessage, sizeof(actualMessage), true);
+
+		char locationName[64] = "";
+		msgData.ReadString(locationName, sizeof(locationName), true);
+
+		// remove if you don't need debugging
+		SDK::Output("ChatDebug", std::format("Format: '{}', Speaker: '{}', Message: '{}', Location: '{}'",
+			formatString, speakerName, actualMessage, locationName).c_str(), {}, true, true);
+
+		
+		std::string format = formatString;
+		if (format == "TF_Chat_All" || format == "TF_Chat_Team" || format == "TF_Chat_AllDead" || format == "TF_Chat_TeamDead")
+		{
+			std::string message = actualMessage;
+			if (!message.empty())
+			{
+				
+				message.erase(0, message.find_first_not_of(" \t\r\n"));
+				message.erase(message.find_last_not_of(" \t\r\n") + 1);
+
+				SDK::Output("ChatDebug", std::format("Final message from speaker {}: '{}'", speaker, message).c_str(), {}, true, true);
+
+				if (!message.empty() && speaker != I::EngineClient->GetLocalPlayer())
+				{
+					SDK::Output("ChatDebug", "Calling AutoReply", {}, true, true);
+					F::Misc.AutoReply(speaker, message.c_str());
+				}
+				else
+				{
+					SDK::Output("ChatDebug", "Skipping AutoReply - empty message or self-message", {}, true, true);
+				}
+			}
+			else
+			{
+				SDK::Output("ChatDebug", "Empty actual message", {}, true, true);
+			}
+		}
+		else
+		{
+			SDK::Output("ChatDebug", std::format("Non-chat format: '{}'", format).c_str(), {}, true, true);
+		}
+
+		break;
+	}
+
 	case VoteStart:
 		F::Output.UserMessage(msgData);
 		F::AutoVote.UserMessage(msgData);
+		F::Misc.VotekickResponse(msgData);
 
 		break;
 	case VoiceSubtitle:
@@ -43,6 +104,7 @@ MAKE_HOOK(IBaseClientDLL_DispatchUserMessage, U::Memory.GetVFunc(I::BaseClientDL
 
 		break;
 	}
+
 	case TextMsg:
 	{
 		char rawMsg[256]; msgData.ReadString(rawMsg, sizeof(rawMsg), true);
