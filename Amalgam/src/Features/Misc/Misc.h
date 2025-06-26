@@ -1,6 +1,8 @@
 #pragma once
 #include "../../SDK/SDK.h"
 
+class bf_read; // i don't remember why i needed it tho lol
+
 class CMisc
 {
 	
@@ -20,24 +22,16 @@ class CMisc
 	void ChatSpam(CTFPlayer* pLocal);
 	void AchievementSpam(CTFPlayer* pLocal);
 	void KillSay(int victim);
-	void AutoReply(int speaker, const char* text);
-	void VotekickResponse(int target);
 	std::string ProcessTextReplacements(std::string text);
-
 	void CheatsBypass();
 	void WeaponSway();
 	void AutoReport();
-
 	void TauntKartControl(CTFPlayer* pLocal, CUserCmd* pCmd);
 	void FastMovement(CTFPlayer* pLocal, CUserCmd* pCmd);
-
 	void AutoPeek(CTFPlayer* pLocal, CUserCmd* pCmd, bool bPost = false);
 	void EdgeJump(CTFPlayer* pLocal, CUserCmd* pCmd, bool bPost = false);
-
 	bool m_bPeekPlaced = false;
 	Vec3 m_vPeekReturnPos = {};
-	//bool bSteamCleared = false;
-
 	std::vector<std::string> m_vChatSpamLines;
 	std::vector<std::string> m_vKillSayLines;
 	std::vector<std::string> m_vAutoReplyLines;
@@ -55,19 +49,28 @@ class CMisc
 public:
 	void RunPre(CTFPlayer* pLocal, CUserCmd* pCmd);
 	void RunPost(CTFPlayer* pLocal, CUserCmd* pCmd, bool pSendPacket);
-
 	void Event(IGameEvent* pEvent, uint32_t uNameHash);
 	int AntiBackstab(CTFPlayer* pLocal, CUserCmd* pCmd, bool bSendPacket);
-
 	void PingReducer();
 	void UnlockAchievements();
 	void LockAchievements();
+	void VotekickResponse(bf_read& msgData);
 	bool SteamRPC();
-
+	void AutoReply(int speaker, const char* text);
+	std::unordered_map<std::string, std::vector<std::string>> m_mAutoReplyTriggers;
+	std::unordered_map<std::string, std::vector<std::string>> m_mVotekickResponses;
+	void LoadVotekickConfig();
+	void LoadAutoReplyConfig();
 	int m_iWishCmdrate = -1;
-	//int m_iWishUpdaterate = -1;
 	bool m_bAntiAFK = false;
 	Timer m_tRandomVotekickTimer;
+	std::string m_sVoteInitiatorName; 
+	std::string m_sVoteTargetName;
+};
+
+private:
+	int m_iVoteTarget = -1;
+	std::string m_sVoteType;
 };
 
 ADD_FEATURE(CMisc, Misc)
