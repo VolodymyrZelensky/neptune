@@ -299,4 +299,4 @@ If you encounter issues:
 
 ## License
 
-Free to use and modify. Created for the TF2 community! 🎮
+Free to use and modify.
