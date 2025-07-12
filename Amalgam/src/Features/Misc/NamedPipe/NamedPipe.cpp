@@ -59,21 +59,70 @@ namespace F::NamedPipe
     std::jthread pipeThread;
     int botId = -1;
     
-    // Helper to read BOTID from environment variable. Returns -1 if not present/invalid.
-    int GetBotIdFromEnv()
+    // Extract first positive integer appearing in string, -1 if none
+    int ParseBotIdFromString(const std::string& src)
+    {
+        int id = -1;
+        for (size_t i = 0; i < src.size(); ++i)
+        {
+            if (isdigit(static_cast<unsigned char>(src[i])))
+            {
+                id = 0;
+                while (i < src.size() && isdigit(static_cast<unsigned char>(src[i])))
+                {
+                    id = id * 10 + (src[i] - '0');
+                    ++i;
+                }
+                break;
+            }
+        }
+        return id;
+    }
+
+    // Get bot ID detection in priority order: STEAMIPCNAME -> BOTID -> command line
+    int DetectBotId()
     {
         char* envVal = nullptr;
         size_t len = 0;
+
+        // 1. STEAMIPCNAME (set by panel when launching TF2)
+        if (_dupenv_s(&envVal, &len, "STEAMIPCNAME") == 0 && envVal)
+        {
+            std::string ipc(envVal);
+            free(envVal);
+            int id = ParseBotIdFromString(ipc);
+            if (id > 0)
+            {
+                Log("Detected bot ID from STEAMIPCNAME env: " + std::to_string(id));
+                return id;
+            }
+        }
+
+        // 2. BOTID env (legacy fallback)
         if (_dupenv_s(&envVal, &len, "BOTID") == 0 && envVal)
         {
             int id = atoi(envVal);
             free(envVal);
             if (id > 0)
             {
-                Log("Found BOTID environment variable: " + std::to_string(id));
+                Log("Detected bot ID from BOTID env: " + std::to_string(id));
                 return id;
             }
         }
+
+        // 3. Parse command line for -steamipcname steam_bot_X pattern
+        char* cmdLine = GetCommandLineA();
+        if (cmdLine)
+        {
+            std::string cmd(cmdLine);
+            int id = ParseBotIdFromString(cmd);
+            if (id > 0)
+            {
+                Log("Detected bot ID from command line: " + std::to_string(id));
+                return id;
+            }
+        }
+
         return -1;
     }
     
@@ -160,22 +209,12 @@ namespace F::NamedPipe
     
     // (legacy Log / PIPE_NAME / GetErrorMessage helpers removed — see NamedPipeUtils.h)
 
-    int ReadBotIdFromFile()
-    {
-        // Use only environment variable now; no legacy file lookup
-        int envId = GetBotIdFromEnv();
-        if (envId == -1)
-        {
-            Log("BOTID environment variable not set. Using fallback ID 1.");
-            return 1;
-        }
-        return envId;
-    }
+    // legacy ReadBotIdFromFile removed – DetectBotId is now used directly
 
     void Initialize()
     {
         Log("NamedPipe::Initialize() called");
-        botId = ReadBotIdFromFile();
+        botId = DetectBotId();
         
         std::stringstream ss;
         if (botId == -1)

@@ -11,6 +11,7 @@
 #include "../Misc/Misc.h"
 #include "../Simulation/MovementSimulation/MovementSimulation.h"
 #include "../CritHack/CritHack.h"
+#include "../../Utils/Optimization/CpuOptimization.h"
 #include <unordered_set>
 #include <format>
 #include <optional>
@@ -3166,44 +3167,80 @@ void CNavBot::Run(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUserCmd* pCmd)
 	if (pCmd->buttons & (IN_FORWARD | IN_BACK | IN_MOVERIGHT | IN_MOVELEFT) && !F::Misc.m_bAntiAFK)
 		return;
 
-	AutoScope(pLocal, pWeapon, pCmd);
-	UpdateLocalBotPositions(pLocal);
-	HandleDoubletapRecharge(pWeapon);
-
-	RefreshSniperSpots();
-	RefreshLocalBuildings(pLocal);
-	const auto tClosestEnemy = GetNearestPlayerDistance(pLocal, pWeapon);
-	RefreshBuildingSpots(pLocal, pLocal->GetWeaponFromSlot(SLOT_MELEE), tClosestEnemy);
-
-	UpdateClassConfig(pLocal, pWeapon);
-	HandleMinigunSpinup(pLocal, pWeapon, pCmd, tClosestEnemy);
-
-	UpdateSlot(pLocal, pWeapon, tClosestEnemy);
-	UpdateEnemyBlacklist(pLocal, pWeapon, m_iCurrentSlot);
+	// Frame distribution for expensive operations
+	static int frameDistributionCounter = 0;
+	frameDistributionCounter = (frameDistributionCounter + 1) % 4;
 	
-	// Fast cleanup of invalid blacklists
-	FastCleanupInvalidBlacklists(pLocal);
-	// --- Behaviour scheduler ---
+	// High priority operations (every frame)
+	AutoScope(pLocal, pWeapon, pCmd);
+	
+	// Distribute expensive operations across frames
+	switch (frameDistributionCounter)
+	{
+	case 0:
+		UpdateLocalBotPositions(pLocal);
+		break;
+	case 1:
+		RefreshSniperSpots();
+		RefreshLocalBuildings(pLocal);
+		break;
+	case 2:
+		UpdateClassConfig(pLocal, pWeapon);
+		break;
+	case 3:
+		UpdateEnemyBlacklist(pLocal, pWeapon, m_iCurrentSlot);
+		break;
+	}
+
+	HandleDoubletapRecharge(pWeapon);
+	const auto tClosestEnemy = GetNearestPlayerDistance(pLocal, pWeapon);
+	
+	// Only refresh building spots every few frames for better performance
+	static FastTimer buildingSpotsTimer{};
+	if (buildingSpotsTimer.Run(1.0f))
+		RefreshBuildingSpots(pLocal, pLocal->GetWeaponFromSlot(SLOT_MELEE), tClosestEnemy);
+
+	HandleMinigunSpinup(pLocal, pWeapon, pCmd, tClosestEnemy);
+	UpdateSlot(pLocal, pWeapon, tClosestEnemy);
+	
+	// Reduce frequency of blacklist cleanup
+	static FastTimer blacklistTimer{};
+	if (blacklistTimer.Run(0.5f))
+		FastCleanupInvalidBlacklists(pLocal);
+	
+	// --- Behavior scheduler ---
 	{
 		using TaskFn = std::function<bool()>;
-		std::vector<std::pair<int, TaskFn>> vTasks = {
-			{ danger,       [&]() { return EscapeProjectiles(pLocal) || EscapeDanger(pLocal); } },
-			{ escape_spawn, [&]() { return EscapeSpawn(pLocal); } },
-			{ prio_melee,   [&]() { return MeleeAttack(pCmd, pLocal, m_iCurrentSlot, tClosestEnemy); } },
-			{ health,       [&]() { return GetHealth(pCmd, pLocal); } },
-			{ ammo,         [&]() { return GetAmmo(pCmd, pLocal); } },
-			{ run_safe_reload, [&]() { return RunSafeReload(pLocal, pWeapon); } },
-			{ capture,      [&]() { return CaptureObjectives(pLocal, pWeapon); } },
-			{ engineer,     [&]() { return EngineerLogic(pCmd, pLocal, tClosestEnemy); } },
-			{ snipe_sentry, [&]() { return SnipeSentries(pLocal); } },
-			{ staynear,     [&]() { return StayNear(pLocal, pWeapon); } },
-			{ run_reload,   [&]() { return MoveInFormation(pLocal, pWeapon); } },
-			{ patrol,       [&]() { return Roam(pLocal, pWeapon); } }
-		};
+		// Pre-allocate static vector to avoid reallocations
+		static std::vector<std::pair<int, TaskFn>> vTasks;
+		vTasks.clear();
+		vTasks.reserve(12);
+		
+		// Only add tasks that are likely to be needed to reduce lambda overhead
+		vTasks.emplace_back(danger, [&]() { return EscapeProjectiles(pLocal) || EscapeDanger(pLocal); });
+		vTasks.emplace_back(escape_spawn, [&]() { return EscapeSpawn(pLocal); });
+		vTasks.emplace_back(prio_melee, [&]() { return MeleeAttack(pCmd, pLocal, m_iCurrentSlot, tClosestEnemy); });
+		
+		// Resource gathering tasks
+		vTasks.emplace_back(health, [&]() { return GetHealth(pCmd, pLocal); });
+		vTasks.emplace_back(ammo, [&]() { return GetAmmo(pCmd, pLocal); });
+		
+		vTasks.emplace_back(run_safe_reload, [&]() { return RunSafeReload(pLocal, pWeapon); });
+		vTasks.emplace_back(capture, [&]() { return CaptureObjectives(pLocal, pWeapon); });
+		
+		// Engineer logic only for engineers
+		if (pLocal->m_iClass() == TF_CLASS_ENGINEER)
+			vTasks.emplace_back(engineer, [&]() { return EngineerLogic(pCmd, pLocal, tClosestEnemy); });
+		
+		// Add remaining tasks based on class
+		if (pLocal->m_iClass() == TF_CLASS_SNIPER)
+			vTasks.emplace_back(snipe_sentry, [&]() { return SnipeSentries(pLocal); });
+		
+		vTasks.emplace_back(staynear, [&]() { return StayNear(pLocal, pWeapon); });
+		vTasks.emplace_back(run_reload, [&]() { return MoveInFormation(pLocal, pWeapon); });
+		vTasks.emplace_back(patrol, [&]() { return Roam(pLocal, pWeapon); });
 
-		// Evaluate tasks from highest to lowest priority
-		std::sort(vTasks.begin(), vTasks.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
-
+		// Pre-sorted by priority (manual sorting to avoid runtime overhead)
 		bool bDidSomething = false;
 		for (auto& [prio, fn] : vTasks)
 		{
@@ -3219,21 +3256,28 @@ void CNavBot::Run(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUserCmd* pCmd)
 			bDidSomething = EscapeDanger(pLocal) || Roam(pLocal, pWeapon);
 		}
 
+		// Optimize crit hack logic
 		if (bDidSomething)
 		{
 			CTFPlayer* pPlayer = nullptr;
 			switch (F::NavEngine.current_priority)
 			{
 			case staynear:
-				pPlayer = I::ClientEntityList->GetClientEntity(m_iStayNearTargetIdx)->As<CTFPlayer>();
-				if (pPlayer)
-					F::CritHack.m_bForce = !pPlayer->IsDormant() && pPlayer->m_iHealth() >= pWeapon->GetDamage();
+				if (m_iStayNearTargetIdx > 0)
+				{
+					pPlayer = I::ClientEntityList->GetClientEntity(m_iStayNearTargetIdx)->As<CTFPlayer>();
+					if (pPlayer)
+						F::CritHack.m_bForce = !pPlayer->IsDormant() && pPlayer->m_iHealth() >= pWeapon->GetDamage();
+				}
 				break;
 			case prio_melee:
 			case health:
 			case danger:
-				pPlayer = I::ClientEntityList->GetClientEntity(tClosestEnemy.m_iEntIdx)->As<CTFPlayer>();
-				F::CritHack.m_bForce = pPlayer && !pPlayer->IsDormant() && pPlayer->m_iHealth() >= pWeapon->GetDamage();
+				if (tClosestEnemy.m_iEntIdx > 0)
+				{
+					pPlayer = I::ClientEntityList->GetClientEntity(tClosestEnemy.m_iEntIdx)->As<CTFPlayer>();
+					F::CritHack.m_bForce = pPlayer && !pPlayer->IsDormant() && pPlayer->m_iHealth() >= pWeapon->GetDamage();
+				}
 				break;
 			default:
 				F::CritHack.m_bForce = false;
@@ -3241,37 +3285,35 @@ void CNavBot::Run(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUserCmd* pCmd)
 			}
 		}
 
-		//  navbrainfuck fix
+		// Stuck detection with reduced frequency
+		static Vector vPrevPos{};
+		static float flStuckTime = 0.0f;
+		static FastTimer tPosTimer{};
+
+		if (tPosTimer.Run(0.3f)) // Reduced frequency from 0.2f to 0.3f
 		{
-			static Vector vPrevPos{};
-			static float  flStuckTime = 0.0f;
-			static Timer  tPosTimer{};
-
-			if (tPosTimer.Run(0.2f))
+			if (pLocal->GetAbsOrigin().DistToSqr(vPrevPos) < pow(10.0f, 2))
 			{
-				if (pLocal->GetAbsOrigin().DistToSqr(vPrevPos) < pow(10.0f, 2))
+				flStuckTime += 0.3f;
+			}
+			else
+			{
+				flStuckTime = 0.0f;
+				vPrevPos = pLocal->GetAbsOrigin();
+			}
+
+			if (flStuckTime >= 3.0f && F::NavEngine.current_priority != 0)
+			{
+				if (auto pArea = F::NavEngine.findClosestNavSquare(pLocal->GetAbsOrigin()))
 				{
-					flStuckTime += 0.2f;
-				}
-				else
-				{
-					flStuckTime = 0.0f;
-					vPrevPos    = pLocal->GetAbsOrigin();
+					(*F::NavEngine.getFreeBlacklist())[pArea] = BlacklistReason(BR_BAD_BUILDING_SPOT);
 				}
 
-				if (flStuckTime >= 3.0f && F::NavEngine.current_priority != 0)
-				{
-					if (auto pArea = F::NavEngine.findClosestNavSquare(pLocal->GetAbsOrigin()))
-					{
-						(*F::NavEngine.getFreeBlacklist())[pArea] = BlacklistReason(BR_BAD_BUILDING_SPOT);
-					}
+				F::NavEngine.cancelPath();
+				flStuckTime = 0.0f;
+				vPrevPos = pLocal->GetAbsOrigin();
 
-					F::NavEngine.cancelPath();
-					flStuckTime = 0.0f;
-					vPrevPos    = pLocal->GetAbsOrigin();
-
-					Roam(pLocal, pWeapon);
-				}
+				Roam(pLocal, pWeapon);
 			}
 		}
 	}
@@ -3728,69 +3770,36 @@ void CNavBot::CleanupExpiredBlacklist()
 
 void CNavBot::FastCleanupInvalidBlacklists(CTFPlayer* pLocal)
 {
-	static Timer tFastCleanupTimer{};
-	
-	if (!tFastCleanupTimer.Run(0.2f))
+	static FastTimer cleanupTimer{};
+	if (!cleanupTimer.Run(1.0f)) // Reduced frequency for better performance
 		return;
 
 	auto pBlacklist = F::NavEngine.getFreeBlacklist();
-	if (!pBlacklist || !pLocal || !pLocal->IsAlive())
+	if (!pBlacklist || pBlacklist->empty())
 		return;
 
 	std::vector<CNavArea*> vToRemove;
-	Vector vLocalPos = pLocal->GetAbsOrigin();
+	float flCurrentTime = I::GlobalVars->curtime;
 
-	// Quick check for obviously invalid blacklists
-	for (auto it = pBlacklist->begin(); it != pBlacklist->end(); ++it)
+	// Quick check for expired blacklists
+	for (auto it = m_mAreaBlacklistExpiry.begin(); it != m_mAreaBlacklistExpiry.end();)
 	{
-		CNavArea* pArea = it->first;
-		BlacklistReason_enum reason = it->second.value;
-		
-		// Only check temporary player-based blacklists
-		if (reason != BR_ENEMY_NORMAL && reason != BR_ENEMY_DORMANT)
-			continue;
-
-		Vector vAreaPos = pArea->m_center;
-		
-		// If we're very far from the blacklisted area, quickly check if threats are gone
-		if (vLocalPos.DistToSqr(vAreaPos) > pow(1000.0f, 2))
+		if (flCurrentTime >= it->second)
 		{
-			bool bAnyEnemyNear = false;
-			
-			for (auto pEntity : H::Entities.GetGroup(EGroupType::PLAYERS_ENEMIES))
-			{
-				if (!pEntity->IsPlayer())
-					continue;
-
-				auto pPlayer = pEntity->As<CTFPlayer>();
-				if (!pPlayer->IsAlive())
-					continue;
-
-				auto vPlayerOrigin = F::NavParser.GetDormantOrigin(pPlayer->entindex());
-				if (!vPlayerOrigin)
-					continue;
-
-				if (vAreaPos.DistToSqr(*vPlayerOrigin) < pow(m_tSelectedConfig.m_flMinSlightDanger * 1.5f, 2))
-				{
-					bAnyEnemyNear = true;
-					break;
-				}
-			}
-			
-			if (!bAnyEnemyNear)
-				vToRemove.push_back(pArea);
+			vToRemove.push_back(it->first);
+			it = m_mAreaBlacklistExpiry.erase(it);
+		}
+		else
+		{
+			++it;
 		}
 	}
 
+	// Remove from actual blacklist
 	for (auto pArea : vToRemove)
 	{
-		auto it = pBlacklist->find(pArea);
-		if (it != pBlacklist->end())
-		{
-			pBlacklist->erase(it);
-		}
+		pBlacklist->erase(pArea);
 		m_mAreaDangerScore.erase(pArea);
-		m_mAreaBlacklistExpiry.erase(pArea);
 	}
 }
 

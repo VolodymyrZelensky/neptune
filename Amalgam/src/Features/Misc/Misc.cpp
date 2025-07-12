@@ -4,6 +4,7 @@
 #include "../Players/PlayerUtils.h"
 #include "../Aimbot/AutoRocketJump/AutoRocketJump.h"
 #include "NamedPipe/NamedPipe.h"
+#include "../../Utils/Optimization/CpuOptimization.h"
 #include <fstream>
 #include <format>
 #include <chrono>
@@ -67,54 +68,95 @@ namespace
 
 void CMisc::RunPre(CTFPlayer* pLocal, CUserCmd* pCmd)
 {
-	// f2p voicecommandspam
-	static bool initialized = false;
-	if (!initialized)
+	// Initialize CPU optimization system
+	static bool systemInitialized = false;
+	if (!systemInitialized)
 	{
+		CpuOptimization::g_OptimizationManager.Initialize();
 		m_iTokenBucket = 5;
 		m_tVoiceCommandTimer.Update();
-		initialized = true;
+		systemInitialized = true;
 	}
 
-	NoiseSpam(pLocal);
-	VoiceCommandSpam(pLocal);
-	MicSpam(pLocal);
-	ChatSpam(pLocal);
-	CheatsBypass();
-	WeaponSway();
-	BotNetworking();
-	AutoReport();
-	GrabSteamIDs();
-	StealIdentity(pLocal);
+	// Update optimization system
+	CpuOptimization::g_OptimizationManager.Update();
 
-	if (I::EngineClient && I::EngineClient->IsInGame() && I::EngineClient->IsConnected())
+	// Use frequency controller for less critical functions
+	static bool frameDistribution = false;
+	frameDistribution = !frameDistribution;
+	
+	// High priority functions (every frame)
+	if (CPU_OPT_EXPENSIVE_FEATURE_CHECK())
 	{
-		static Timer namedPipeTimer{};
-		if (namedPipeTimer.Run(1.0f))
+		CheatsBypass();
+		WeaponSway();
+	}
+
+	// Medium priority functions (every other frame)
+	if (frameDistribution)
+	{
+		NoiseSpam(pLocal);
+		VoiceCommandSpam(pLocal);
+		ChatSpam(pLocal);
+	}
+	else if (CPU_OPT_EXPENSIVE_FEATURE_CHECK())
+	{
+		MicSpam(pLocal);
+		BotNetworking();
+	}
+
+	// Low priority functions (distributed)
+	static int lowPriorityCounter = 0;
+	lowPriorityCounter = (lowPriorityCounter + 1) % 4;
+	
+	switch (lowPriorityCounter)
+	{
+	case 0: AutoReport(); break;
+	case 1: GrabSteamIDs(); break;
+	case 2: StealIdentity(pLocal); break;
+	case 3:
+		if (I::EngineClient && I::EngineClient->IsInGame() && I::EngineClient->IsConnected())
 		{
-			F::NamedPipe::UpdateLocalBotIgnoreStatus();
+			static FastTimer namedPipeTimer{};
+			if (namedPipeTimer.Run(1.0f))
+				F::NamedPipe::UpdateLocalBotIgnoreStatus();
 		}
+		break;
 	}
 
 	if (!pLocal)
 		return;
 
-	AntiAFK(pLocal, pCmd);
-	InstantRespawnMVM(pLocal);
-	RandomVotekick(pLocal);
-	CallVoteSpam(pLocal);
-	AchievementSpam(pLocal);
+	// Medium priority player functions
+	if (frameDistribution)
+	{
+		AntiAFK(pLocal, pCmd);
+		InstantRespawnMVM(pLocal);
+	}
+	else if (CPU_OPT_EXPENSIVE_FEATURE_CHECK())
+	{
+		RandomVotekick(pLocal);
+		CallVoteSpam(pLocal);
+		AchievementSpam(pLocal);
+	}
 
-	if (!pLocal->IsAlive() || pLocal->IsAGhost() || pLocal->m_MoveType() != MOVETYPE_WALK || pLocal->IsSwimming() || pLocal->InCond(TF_COND_SHIELD_CHARGE) || pLocal->InCond(TF_COND_HALLOWEEN_KART))
+	// Early exit for invalid movement states
+	if (!pLocal->IsAlive() || pLocal->IsAGhost() || pLocal->m_MoveType() != MOVETYPE_WALK || 
+		pLocal->IsSwimming() || pLocal->InCond(TF_COND_SHIELD_CHARGE) || pLocal->InCond(TF_COND_HALLOWEEN_KART))
 		return;
 
+	// Movement functions (high priority)
 	AutoJump(pLocal, pCmd);
 	EdgeJump(pLocal, pCmd);
 	AutoJumpbug(pLocal, pCmd);
 	AutoStrafe(pLocal, pCmd);
 	AutoPeek(pLocal, pCmd);
 	BreakJump(pLocal, pCmd);
-	m_sServerIdentifier = GetServerIdentifier();
+	
+	// Cache server identifier less frequently
+	static FastTimer serverIdTimer{};
+	if (serverIdTimer.Run(2.0f))
+		m_sServerIdentifier = GetServerIdentifier();
 }
 
 void CMisc::RunPost(CTFPlayer* pLocal, CUserCmd* pCmd, bool pSendPacket)
@@ -883,10 +925,11 @@ void CMisc::NoiseSpam(CTFPlayer* pLocal)
 
 void CMisc::VoiceCommandSpam(CTFPlayer* pLocal)
 {
+	CPU_OPT_SKIP_IF_LOW_PERF();
+	
 	if (!Vars::Misc::Automation::VoiceCommandSpam.Value || !pLocal || !pLocal->IsAlive())
 		return;
 
-	float flCurrentTime = SDK::PlatFloatTime();
 	bool bUseF2PSystem = Vars::Misc::Automation::VoiceF2PMode.Value;
 
 	// F2Pvoicecommandspam tokensystem
@@ -894,18 +937,19 @@ void CMisc::VoiceCommandSpam(CTFPlayer* pLocal)
 	{
 		// F2P token bucket system constants
 		const int maxTokens = 5;
-		const float refillInterval = 6.0f;
+		const float refillInterval = 6.0f * CPU_OPT_GET_FREQ_MULTIPLIER();
 
 		if (m_tVoiceCommandTimer.Run(refillInterval) && m_iTokenBucket < maxTokens)
 		{
 			m_iTokenBucket++;
-			SDK::Output("VoiceCommandSpam", std::format("F2P Mode: Token added, now: {}", m_iTokenBucket).c_str(), {}, true, true);
+			if (CPU_OPT_EXPENSIVE_FEATURE_CHECK())
+				SDK::Output("VoiceCommandSpam", std::format("F2P Mode: Token added, now: {}", m_iTokenBucket).c_str(), {}, true, true);
 		}
 
 		if (m_iTokenBucket <= 0)
 			return;
 
-		static Timer spamTimer{};
+		static FastTimer spamTimer{};
 		if (!spamTimer.Run(0.2f))
 			return;
 
@@ -913,11 +957,9 @@ void CMisc::VoiceCommandSpam(CTFPlayer* pLocal)
 	}
 	else
 	{
-		static float flLastVoiceTime = 0.0f;
-		if (flCurrentTime - flLastVoiceTime < 4.0f)
+		static FastTimer voiceTimer{};
+		if (!voiceTimer.Run(4.0f))
 			return;
-
-		flLastVoiceTime = flCurrentTime;
 	}
 
 	switch (Vars::Misc::Automation::VoiceCommandSpam.Value)
@@ -1205,159 +1247,153 @@ void CMisc::CallVoteSpam(CTFPlayer* pLocal)
 // lmaobox if(crash){(dontcrash)} method down here
 void CMisc::ChatSpam(CTFPlayer* pLocal)
 {
+	CPU_OPT_SKIP_IF_VERY_LOW_PERF(2); // Skip on very low performance
+	
 	if (!Vars::Misc::Automation::ChatSpam::Enable.Value || !pLocal || !I::EngineClient)
 	{
 		m_tChatSpamTimer.Update();
 		return;
 	}
 
-	try
-	{
-		if (!I::EngineClient->IsInGame() || !I::EngineClient->IsConnected())
-		{
-			m_tChatSpamTimer.Update();
-			return;
-		}
-
-		if (pLocal->m_iTeamNum() <= 1 || pLocal->m_iClass() == TF_CLASS_UNDEFINED)
-		{
-			m_tChatSpamTimer.Update();
-			return;
-		}
-	}
-	catch (...)
+	// Early validation with minimal overhead
+	if (!I::EngineClient->IsInGame() || !I::EngineClient->IsConnected() ||
+		pLocal->m_iTeamNum() <= 1 || pLocal->m_iClass() == TF_CLASS_UNDEFINED)
 	{
 		m_tChatSpamTimer.Update();
 		return;
 	}
 
+	// Cache lines on first use or when empty
 	if (m_vChatSpamLines.empty())
 	{
-		std::vector<std::string> defaults = {
+		static std::vector<std::string> defaults = {
 			"Chatspam is highly customizable",
-			"Check misc.cpp for more info",
+			"Check misc.cpp for more info", 
 			"dsc.gg/nptntf",
 			"dont call me bro"
 		};
 		LoadLines("ChatSpam", "cat_chatspam.txt", defaults, m_vChatSpamLines);
 	}
 
-	float spamInterval = Vars::Misc::Automation::ChatSpam::Interval.Value;
-	if (spamInterval <= 0.2f)
-		spamInterval = 0.2f;
-
+	// Apply performance-based interval scaling
+	float spamInterval = std::max(0.2f, Vars::Misc::Automation::ChatSpam::Interval.Value * CPU_OPT_GET_FREQ_MULTIPLIER());
+	
 	if (!m_tChatSpamTimer.Run(spamInterval))
 		return;
 
-	std::string chatLine;
 	const size_t lineCount = m_vChatSpamLines.size();
-
 	if (lineCount == 0)
 		return;
 
-	try
+	// Optimized line selection
+	std::string chatLine;
+	if (Vars::Misc::Automation::ChatSpam::Randomize.Value)
 	{
-		if (Vars::Misc::Automation::ChatSpam::Randomize.Value)
-		{
-			// Safer random index generation
-			int max = static_cast<int>(lineCount) - 1;
-			if (max < 0) max = 0;
-			int randomIndex = SDK::RandomInt(0, max);
-
-			// Double-check bounds for safety
-			if (randomIndex >= 0 && randomIndex < static_cast<int>(lineCount))
-				chatLine = m_vChatSpamLines[randomIndex];
-			else
-				chatLine = "[chtspm]";
-		}
-		else
-		{
-			if (m_iCurrentChatSpamIndex < 0 || m_iCurrentChatSpamIndex >= static_cast<int>(lineCount))
-				m_iCurrentChatSpamIndex = 0;
-
-			if (m_iCurrentChatSpamIndex >= 0 && m_iCurrentChatSpamIndex < static_cast<int>(lineCount))
-			{
-				chatLine = m_vChatSpamLines[m_iCurrentChatSpamIndex];
-				m_iCurrentChatSpamIndex = (m_iCurrentChatSpamIndex + 1) % static_cast<int>(lineCount);
-			}
-			else
-			{
-				chatLine = "[ChatSpam]";
-				m_iCurrentChatSpamIndex = 0;
-			}
-		}
-
-		// Limit message length to prevent buffer issues
-		if (chatLine.length() > 150)
-		{
-			chatLine = chatLine.substr(0, 150);
-		}
-
-		// Process text replacements
-		chatLine = ProcessTextReplacements(chatLine);
-
-		std::string chatCommand;
-		if (Vars::Misc::Automation::ChatSpam::TeamChat.Value)
-			chatCommand = "say_team \"" + chatLine + "\"";
-		else
-			chatCommand = "say \"" + chatLine + "\"";
-
-		I::EngineClient->ClientCmd_Unrestricted(chatCommand.c_str());
+		int randomIndex = SDK::RandomInt(0, static_cast<int>(lineCount) - 1);
+		chatLine = m_vChatSpamLines[randomIndex];
 	}
-	catch (...)
+	else
 	{
-		// Silently fail if we encounter any exception during command execution
-		return;
+		if (m_iCurrentChatSpamIndex >= static_cast<int>(lineCount))
+			m_iCurrentChatSpamIndex = 0;
+		chatLine = m_vChatSpamLines[m_iCurrentChatSpamIndex];
+		m_iCurrentChatSpamIndex = (m_iCurrentChatSpamIndex + 1) % static_cast<int>(lineCount);
 	}
+
+	// Optimize string operations with caching
+	if (chatLine.length() > 150)
+		chatLine.resize(150);
+
+	// Process text replacements only if enabled and performance allows
+	if (Vars::Misc::Automation::ChatSpam::TextReplace.Value && CPU_OPT_EXPENSIVE_FEATURE_CHECK())
+	{
+		auto& stringCache = CpuOptimization::g_OptimizationManager.GetStringCache();
+		chatLine = stringCache.GetCached(chatLine, [this, &chatLine]() {
+			return ProcessTextReplacements(chatLine);
+		});
+	}
+
+	// Build and send command efficiently
+	std::string chatCommand = Vars::Misc::Automation::ChatSpam::TeamChat.Value ? 
+		"say_team \"" + chatLine + "\"" : "say \"" + chatLine + "\"";
+	
+	I::EngineClient->ClientCmd_Unrestricted(chatCommand.c_str());
 }
 
 void CMisc::AutoReport()
 {
+	CPU_OPT_SKIP_IF_VERY_LOW_PERF(1); // Skip on low performance
+	
 	if (!Vars::Misc::Automation::AutoReport.Value)
 		return;
 
-	static Timer reportTimer{};
-	if (!reportTimer.Run(5.0f))
+	static FastTimer reportTimer{};
+	float reportInterval = 5.0f * CPU_OPT_GET_FREQ_MULTIPLIER();
+	if (!reportTimer.Run(reportInterval))
 		return;
 
 	static auto reportFunc = reinterpret_cast<void(*)(uint64_t, int)>(U::Memory.FindSignature("client.dll", "48 89 5C 24 ? 57 48 83 EC 60 48 8B D9 8B FA"));
-	if (!reportFunc)
-		return;
-
-	if (!I::EngineClient || !I::EngineClient->IsInGame() || !I::EngineClient->IsConnected())
+	if (!reportFunc || !I::EngineClient || !I::EngineClient->IsInGame() || !I::EngineClient->IsConnected())
 		return;
 
 	CTFPlayer* pLocal = H::Entities.GetLocal();
 	if (!pLocal)
 		return;
 
-	for (int i = 1; i <= I::EngineClient->GetMaxClients(); i++)
-	{
-		if (i == I::EngineClient->GetLocalPlayer())
-			continue;
+	// Cache player validation results to reduce repeated checks
+	static std::unordered_set<int> reportedPlayers;
+	static FastTimer cacheResetTimer;
+	if (cacheResetTimer.Run(30.0f)) // Reset cache every 30 seconds
+		reportedPlayers.clear();
 
-		CTFPlayer* pPlayer = reinterpret_cast<CTFPlayer*>(I::ClientEntityList->GetClientEntity(i));
-		if (!pPlayer || !pPlayer->IsAlive())
+	int localPlayerIdx = I::EngineClient->GetLocalPlayer();
+	int maxClients = I::EngineClient->GetMaxClients();
+	
+	// Limit processing per frame for performance
+	static int processIndex = 1;
+	int processed = 0;
+	const int maxProcessPerFrame = std::max(1, maxClients / 10); // Process 10% of players per frame
+
+	for (int i = processIndex; i <= maxClients && processed < maxProcessPerFrame; i++)
+	{
+		if (i == localPlayerIdx || reportedPlayers.count(i))
+		{
+			processed++;
 			continue;
+		}
+
+		auto pPlayer = I::ClientEntityList->GetClientEntity(i);
+		if (!pPlayer)
+		{
+			processed++;
+			continue;
+		}
 
 		PlayerInfo_t playerInfo{};
-		if (!I::EngineClient->GetPlayerInfo(i, &playerInfo))
+		if (!I::EngineClient->GetPlayerInfo(i, &playerInfo) || playerInfo.fakeplayer)
+		{
+			processed++;
 			continue;
+		}
 
-		if (playerInfo.fakeplayer)
-			continue;
-
-	
-		if (H::Entities.IsFriend(i) ||
-			H::Entities.InParty(i) ||
-			F::PlayerUtils.IsIgnored(i) ||
+		// Quick friend/party/ignore check
+		if (H::Entities.IsFriend(i) || H::Entities.InParty(i) || F::PlayerUtils.IsIgnored(i) ||
 			F::PlayerUtils.HasTag(i, F::PlayerUtils.TagToIndex(FRIEND_IGNORE_TAG)) ||
 			F::PlayerUtils.HasTag(i, F::PlayerUtils.TagToIndex(BOT_IGNORE_TAG)))
+		{
+			processed++;
 			continue;
+		}
 
 		uint64_t steamID64 = ((uint64_t)1 << 56) | ((uint64_t)1 << 52) | ((uint64_t)1 << 32) | playerInfo.friendsID;
 		reportFunc(steamID64, 1);
+		reportedPlayers.insert(i);
+		
+		processed++;
 	}
+
+	// Wrap around for next frame
+	processIndex = (processIndex > maxClients) ? 1 : processIndex + 1;
 }
 
 
@@ -2751,14 +2787,15 @@ bool CMisc::LoadLines(const std::string& category, const std::string& fileName,
 
 void CMisc::GrabSteamIDs()
 {
-	if (!Vars::Misc::Automation::GrabSteamIDs.Value)
+	CPU_OPT_SKIP_IF_VERY_LOW_PERF(2); // Skip on very low performance
+	
+	if (!Vars::Misc::Automation::GrabSteamIDs.Value || !I::EngineClient || 
+		!I::EngineClient->IsInGame() || !I::EngineClient->IsConnected())
 		return;
 
-	if (!I::EngineClient || !I::EngineClient->IsInGame() || !I::EngineClient->IsConnected())
-		return;
-
-	static Timer tTimer{};
-	if (!tTimer.Run(5.0f)) // only run every 5 seconds
+	static FastTimer tTimer{};
+	float grabInterval = 5.0f * CPU_OPT_GET_FREQ_MULTIPLIER();
+	if (!tTimer.Run(grabInterval))
 		return;
 
 	auto pResource = H::Entities.GetPR();
@@ -2766,19 +2803,9 @@ void CMisc::GrabSteamIDs()
 		return;
 
 	static std::unordered_set<uint32_t> s_SavedIDs{};
-
-	std::string appDataPath = GetAppDataPath();
-	if (appDataPath.empty())
-		return;
-
-	std::string dirPath = appDataPath + "\\Amalgam";
-	CreateDirectoryA(dirPath.c_str(), nullptr);
-	std::string filePath = dirPath + "\\ids.txt";
-
-	std::ofstream file(filePath, std::ios::app);
-	if (!file.is_open())
-		return;
-
+	static std::vector<uint32_t> s_PendingIDs; // Batch writes
+	
+	// Collect new IDs first
 	for (int i = 1; i <= I::EngineClient->GetMaxClients(); ++i)
 	{
 		if (!pResource->m_bValid(i) || !pResource->m_bConnected(i))
@@ -2793,7 +2820,27 @@ void CMisc::GrabSteamIDs()
 			continue;
 
 		s_SavedIDs.insert(steam32);
-		file << steam32 << "\n";
+		s_PendingIDs.push_back(steam32);
+	}
+
+	// Batch write pending IDs to reduce I/O operations
+	if (!s_PendingIDs.empty() && CPU_OPT_EXPENSIVE_FEATURE_CHECK())
+	{
+		std::string appDataPath = GetAppDataPath();
+		if (!appDataPath.empty())
+		{
+			std::string dirPath = appDataPath + "\\Amalgam";
+			CreateDirectoryA(dirPath.c_str(), nullptr);
+			std::string filePath = dirPath + "\\ids.txt";
+
+			std::ofstream file(filePath, std::ios::app);
+			if (file.is_open())
+			{
+				for (uint32_t steamID : s_PendingIDs)
+					file << steamID << "\n";
+			}
+		}
+		s_PendingIDs.clear();
 	}
 }
 

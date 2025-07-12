@@ -9,6 +9,7 @@
 #include <optional>
 #include <format>
 #include "Controllers/FlagController/FlagController.h"
+#include "../../Aimbot/Aimbot.h"
 
 std::optional<Vector> CNavParser::GetDormantOrigin(int iIndex)
 {
@@ -973,6 +974,189 @@ void LookAtPath(CUserCmd* pCmd, const Vec2 vDest, const Vec3 vLocalEyePos, bool 
 	LastAngles = next;
 }
 
+void LookAtPathLegit(CUserCmd* pCmd, const Vec2 vDest, const Vec3 vLocalEyePos)
+{
+	// Static persists between calls – used for smooth continuity
+	static Vector sSmoothedAngles(0,0,0);
+
+	// Pobierz bieżące kąty kamery
+	QAngle qEngine; I::EngineClient->GetViewAngles(qEngine);
+	Vector vEngine(qEngine.x, qEngine.y, qEngine.z);
+
+	// Local player and target selection vars – must be defined before use
+	CTFPlayer* pLocal = H::Entities.GetLocal();
+	Vector vFinalTarget3D;
+	bool bEnemyFound = false;
+
+	// Aimbot aktywny → zbliżaj wewnętrzny wygładzony kąt do kąta aimbota, aby przejście było płynne
+	if (F::Aimbot.m_bRan || G::Attacking == 1)
+	{
+		const float flCatchUpLerp = 0.4f; // szybkość doganiania aimbota
+		sSmoothedAngles = sSmoothedAngles + (vEngine - sSmoothedAngles) * flCatchUpLerp;
+		Math::ClampAngles(sSmoothedAngles);
+		return;
+	}
+
+	// Dla dalszych obliczeń używamy naszej wygładzonej wersji jako aktualny kąt
+	Vector vCurrent = sSmoothedAngles.IsZero() ? vEngine : sSmoothedAngles;
+	
+	// Persistent focus on a single enemy (until dead or unseen for grace time)
+	static int sFocusIdx = 0;           // entindex of focused enemy
+	static float sLastVisible = 0.f;    // last time we saw him
+	static Vector sFocusPos;            // last known position (for short memory)
+	const float flGraceTime = 1.2f;     // seconds to remember enemy behind wall
+
+	float flCurTime = I::GlobalVars->curtime;
+
+	// If aimbot currently has target – override focus
+	if (G::AimTarget.m_iEntIndex > 0)
+		sFocusIdx = G::AimTarget.m_iEntIndex;
+
+	bool bHaveFocus = false;
+	if (sFocusIdx > 0)
+	{
+		if (auto pEnt = I::ClientEntityList->GetClientEntity(sFocusIdx))
+		{
+			if (!pEnt->IsDormant() && pEnt->IsPlayer())
+			{
+				auto pTar = pEnt->As<CTFPlayer>();
+				if (pTar->IsAlive())
+				{
+					Vector pos = pTar->GetAbsOrigin(); pos.z += PLAYER_JUMP_HEIGHT;
+					if (F::NavParser.IsVectorVisibleNavigation(vLocalEyePos, pos, MASK_SHOT))
+					{
+						sFocusPos = pos;
+						sLastVisible = flCurTime;
+						bHaveFocus = true;
+					}
+				}
+			}
+		}
+		// If not visible but within grace period
+		if (!bHaveFocus && flCurTime - sLastVisible < flGraceTime)
+			bHaveFocus = true;
+		
+		if (!bHaveFocus)
+			sFocusIdx = 0; // lost focus
+	}
+
+	if (bHaveFocus)
+	{
+		vFinalTarget3D = sFocusPos;
+		bEnemyFound = true;
+	}
+
+	// If still no focus, search for new enemy to focus (existing logic below will set bEnemyFound and sFocusIdx)
+	if (!bEnemyFound && pLocal && pLocal->IsAlive())
+	{
+		float flBestDist = 1400.0f * 1400.0f;
+		CBaseEntity* pBestEnt = nullptr;
+		for (auto pEnt : H::Entities.GetGroup(EGroupType::PLAYERS_ENEMIES))
+		{
+			if (!pEnt || pEnt->IsDormant() || !pEnt->IsPlayer())
+				continue;
+			auto pEnemy = pEnt->As<CTFPlayer>();
+			if (!pEnemy->IsAlive())
+				continue;
+			Vector vEnemyPos = pEnemy->GetAbsOrigin(); vEnemyPos.z += PLAYER_JUMP_HEIGHT;
+			float flDist = vEnemyPos.DistToSqr(vLocalEyePos);
+			if (flDist > flBestDist)
+				continue;
+			if (!F::NavParser.IsVectorVisibleNavigation(vLocalEyePos, vEnemyPos, MASK_SHOT))
+				continue;
+			flBestDist = flDist;
+			pBestEnt = pEnemy;
+		}
+		if (pBestEnt)
+		{
+			sFocusIdx = pBestEnt->entindex();
+			sFocusPos = pBestEnt->GetAbsOrigin(); sFocusPos.z += PLAYER_JUMP_HEIGHT;
+			sLastVisible = flCurTime;
+			vFinalTarget3D = sFocusPos;
+			bEnemyFound = true;
+		}
+	}
+
+	// 4. Desired look angles
+	Vector vDesired = Math::CalcAngle(vLocalEyePos, vFinalTarget3D);
+ 
+	// 5. Smooth, continuous micro-drift using trigonometry instead of abrupt random jumps
+	// Apply subtle micro-drift ONLY when już prawie na celu
+	const float flTime = I::GlobalVars->curtime;
+	float diffYawAbs   = fabsf(std::remainder(vDesired.y - vCurrent.y, 360.f));
+	float diffPitchAbs = fabsf(vDesired.x - vCurrent.x);
+	if (std::max(diffYawAbs, diffPitchAbs) < 8.f) // tylko przy małej różnicy
+	{
+		float ampYaw   = 1.0f;  // ±1°
+		float ampPitch = 0.6f;  // ±0.6°
+		float flNoiseYaw   = std::sin(flTime * 1.4f) * ampYaw;
+		float flNoisePitch = std::sin(flTime * 1.7f) * ampPitch;
+		vDesired.y += flNoiseYaw;
+		vDesired.x += flNoisePitch;
+	}
+
+	// Compute path yaw for clamping
+ Vector vPathTarget(vDest.x, vDest.y, vLocalEyePos.z);
+ Vector vPathAng = Math::CalcAngle(vLocalEyePos, vPathTarget);
+ float yawDiff = std::remainder(vDesired.y - vPathAng.y, 360.0f);
+ const float maxYawOffset = 60.f;
+ if (fabsf(yawDiff) > maxYawOffset && !G::Attacking)
+ {
+     // Too much off-path – look along path instead
+     vDesired = vPathAng;
+ }
+
+	// 6. Current view
+	QAngle qCurrent; I::EngineClient->GetViewAngles(qCurrent);
+	Vector vDelta = vDesired - vCurrent;
+	vDelta.x = std::remainder(vDelta.x, 360.0f);
+	vDelta.y = std::remainder(vDelta.y, 360.0f);
+ 
+	// Helper lambda for bounded step (defined once per call)
+	auto stepAngle = [](float cur, float target, float maxStep) -> float
+	{
+		float diff = std::remainder(target - cur, 360.0f);
+		if (fabsf(diff) <= maxStep)
+			return cur + diff;
+		return cur + (diff > 0 ? maxStep : -maxStep);
+	};
+
+	// 7. Calculate step sizes based on delta
+	auto CalcDegPerSec = [](float absDiff)
+	{
+		if (absDiff > 150.f) return 540.f; // max ~540°/s (~8° per tick)
+		if (absDiff > 90.f)  return 420.f;
+		if (absDiff > 20.f)  return 240.f;
+		return 140.f;
+	};
+
+	float maxStepYaw   = CalcDegPerSec(fabsf(std::remainder(vDesired.y - vCurrent.y, 360.f))) * I::GlobalVars->interval_per_tick;
+	float maxStepPitch = CalcDegPerSec(fabsf(vDesired.x - vCurrent.x)) * I::GlobalVars->interval_per_tick;
+
+	if(sSmoothedAngles.IsZero()) sSmoothedAngles = vCurrent;
+
+	sSmoothedAngles.x = stepAngle(sSmoothedAngles.x, vDesired.x, maxStepPitch);
+	sSmoothedAngles.y = stepAngle(sSmoothedAngles.y, vDesired.y, maxStepYaw);
+	Math::ClampAngles(sSmoothedAngles);
+ 
+	// 7b. Subtle easing when very close to target to avoid abrupt stop
+	{
+		float diffYaw   = std::remainder(vDesired.y - sSmoothedAngles.y, 360.0f);
+		float diffPitch = vDesired.x - sSmoothedAngles.x;
+		const float easeThreshold = 5.0f; // degrees
+		const float easeFactor    = 0.3f; // proportion per tick
+		if (fabsf(diffYaw) < easeThreshold)
+			sSmoothedAngles.y += diffYaw * easeFactor;
+		if (fabsf(diffPitch) < easeThreshold)
+			sSmoothedAngles.x += diffPitch * easeFactor;
+		Math::ClampAngles(sSmoothedAngles);
+	}
+ 
+	// 8. Apply (non-silent)
+	pCmd->viewangles = sSmoothedAngles;
+	I::EngineClient->SetViewAngles(sSmoothedAngles);
+}
+
 void CNavEngine::followCrumbs(CTFPlayer* pLocal, CUserCmd* pCmd)
 {
 	static Timer tLastJump;
@@ -1178,8 +1362,12 @@ void CNavEngine::followCrumbs(CTFPlayer* pLocal, CUserCmd* pCmd)
 				break;
 			[[fallthrough]];
 		case Vars::NavEng::NavEngine::LookAtPathEnum::Plain:
-		default:
 			LookAtPath(pCmd, { crumbs[0].vec.x, crumbs[0].vec.y }, vLocalEyePos, Vars::NavEng::NavEngine::LookAtPath.Value == Vars::NavEng::NavEngine::LookAtPathEnum::Silent);
+			break;
+		case Vars::NavEng::NavEngine::LookAtPathEnum::Legit:
+			LookAtPathLegit(pCmd, { crumbs[0].vec.x, crumbs[0].vec.y }, vLocalEyePos);
+			break;
+		default:
 			break;
 		}
 	}

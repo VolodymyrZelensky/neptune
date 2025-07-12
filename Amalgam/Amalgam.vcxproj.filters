@@ -25,6 +25,8 @@
     <ClCompile Include="src\Utils\NetVars\NetVars.cpp" />
     <ClCompile Include="src\Utils\Signatures\Signatures.cpp" />
     <ClCompile Include="src\Utils\Timer\Timer.cpp" />
+    <ClCompile Include="src\Utils\Memory\MemoryPool.cpp" />
+    <ClCompile Include="src\Utils\Optimization\CpuOptimization.cpp" />
     <ClCompile Include="src\DllMain.cpp" />
     <ClCompile Include="include\ImGui\imgui.cpp" />
     <ClCompile Include="include\ImGui\imgui_draw.cpp" />
@@ -381,6 +383,7 @@
     <ClInclude Include="src\SDK\Helpers\Draw\Draw.h" />
     <ClInclude Include="src\SDK\Helpers\Draw\Icons.h" />
     <ClInclude Include="src\SDK\Helpers\Entities\Entities.h" />
+    <ClInclude Include="src\SDK\Helpers\Entities\EntitiesOptimized.h" />
     <ClInclude Include="src\SDK\Helpers\Fonts\Fonts.h" />
     <ClInclude Include="src\SDK\Globals.h" />
     <ClInclude Include="src\SDK\SDK.h" />
@@ -393,9 +396,13 @@
     <ClInclude Include="src\Utils\KeyHandler\KeyHandler.h" />
     <ClInclude Include="src\Utils\Math\Math.h" />
     <ClInclude Include="src\Utils\Memory\Memory.h" />
+    <ClInclude Include="src\Utils\Memory\MemoryPool.h" />
     <ClInclude Include="src\Utils\NetVars\NetVars.h" />
     <ClInclude Include="src\Utils\Signatures\Signatures.h" />
     <ClInclude Include="src\Utils\Timer\Timer.h" />
+    <ClInclude Include="src\Utils\Math\SIMDMath.h" />
+    <ClInclude Include="src\Utils\Optimization\BranchOptimization.h" />
+    <ClInclude Include="src\Utils\Optimization\CpuOptimization.h" />
     <ClInclude Include="include\ImGui\imconfig.h" />
     <ClInclude Include="include\ImGui\imgui.h" />
     <ClInclude Include="include\ImGui\imgui_impl_dx9.h" />
@@ -656,6 +663,7 @@
     <ClInclude Include="src\Features\NavBot\NavEngine\FileReader\nav.h" />
     <ClInclude Include="src\Features\NavBot\NavEngine\MicroPather\micropather.h" />
     <ClInclude Include="src\Features\NavBot\NavEngine\NavEngine.h" />
+    <ClInclude Include="src\Features\NavBot\NavEngine\NavEngineOptimized.h" />
     <ClInclude Include="src\Features\NavBot\NavBot.h" />
     <ClInclude Include="src\SDK\Definitions\Main\CBaseTeamObjectiveResource.h" />
     <ClInclude Include="src\Features\AutoJoin\AutoJoin.h" />

@@ -1623,12 +1623,24 @@ bool CAimbotProjectile::Aim(Vec3 vCurAngle, Vec3 vToAngle, Vec3& vOut, int iMeth
 		return true;
 	}
 	case Vars::Aimbot::General::AimTypeEnum::Assistive:
+	{
 		Vec3 vMouseDelta = G::CurrentUserCmd->viewangles.DeltaAngle(G::LastUserCmd->viewangles);
 		Vec3 vTargetDelta = vToAngle.DeltaAngle(G::LastUserCmd->viewangles);
 		float flMouseDelta = vMouseDelta.Length2D(), flTargetDelta = vTargetDelta.Length2D();
 		vTargetDelta = vTargetDelta.Normalized() * std::min(flMouseDelta, flTargetDelta);
 		vOut = vCurAngle - vMouseDelta + vMouseDelta.LerpAngle(vTargetDelta, Vars::Aimbot::General::AssistStrength.Value / 100.f);
 		return true;
+	}
+	case Vars::Aimbot::General::AimTypeEnum::Legit:
+		{
+			Vec3 vDelta = vToAngle - vCurAngle;
+			Math::ClampAngles(vDelta);
+			float flLen = vDelta.Length2D();
+			float flDiv = std::clamp(Math::RemapVal(flLen, 0.f, 90.f, 8.f, 2.f), 2.f, 8.f);
+			vOut = vCurAngle + vDelta / flDiv;
+			Math::ClampAngles(vOut);
+			return true;
+		}
 	}
 
 	return false;
@@ -1646,6 +1658,10 @@ void CAimbotProjectile::Aim(CUserCmd* pCmd, Vec3& vAngle, int iMethod)
 		[[fallthrough]];
 	case Vars::Aimbot::General::AimTypeEnum::Smooth:
 	case Vars::Aimbot::General::AimTypeEnum::Assistive:
+		pCmd->viewangles = vAngle;
+		I::EngineClient->SetViewAngles(vAngle);
+		break;
+	case Vars::Aimbot::General::AimTypeEnum::Legit:
 		pCmd->viewangles = vAngle;
 		I::EngineClient->SetViewAngles(vAngle);
 		break;

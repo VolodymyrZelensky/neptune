@@ -393,7 +393,8 @@ bool CAimbotMelee::Aim(Vec3 vCurAngle, Vec3 vToAngle, Vec3& vOut, int iMethod)
 		Math::ClampAngles(vOut);
 		return true;
 	}
-	case Vars::Aimbot::General::AimTypeEnum::Assistive:
+	case Vars::Aimbot::General::AimTypeEnum::Assistive: 
+	{
 		Vec3 vMouseDelta = G::CurrentUserCmd->viewangles.DeltaAngle(G::LastUserCmd->viewangles);
 		Vec3 vTargetDelta = vToAngle.DeltaAngle(G::LastUserCmd->viewangles);
 		float flMouseDelta = vMouseDelta.Length2D(), flTargetDelta = vTargetDelta.Length2D();
@@ -401,6 +402,16 @@ bool CAimbotMelee::Aim(Vec3 vCurAngle, Vec3 vToAngle, Vec3& vOut, int iMethod)
 		vOut = vCurAngle - vMouseDelta + vMouseDelta.LerpAngle(vTargetDelta, Vars::Aimbot::General::AssistStrength.Value / 100.f);
 		return true;
 	}
+	case Vars::Aimbot::General::AimTypeEnum::Legit: 
+	{
+		Vec3 vDelta = vToAngle - vCurAngle;
+		Math::ClampAngles(vDelta);
+		float flDiv = 4.f;
+		vOut = vCurAngle + vDelta / flDiv;
+		Math::ClampAngles(vOut);
+		return true;
+	}
+}
 
 	return false;
 }
@@ -431,6 +442,9 @@ void CAimbotMelee::Aim(CUserCmd* pCmd, Vec3& vAngle, int iMethod)
 	case Vars::Aimbot::General::AimTypeEnum::Locking:
 		SDK::FixMovement(pCmd, vAngle);
 		pCmd->viewangles = vAngle;
+	case Vars::Aimbot::General::AimTypeEnum::Legit:
+		pCmd->viewangles = vAngle;
+		I::EngineClient->SetViewAngles(vAngle);
 	}
 }
 

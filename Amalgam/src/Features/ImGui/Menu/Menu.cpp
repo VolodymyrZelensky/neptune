@@ -1648,7 +1648,6 @@ void CMenu::MenuMisc(int iTab)
 					}
 					PopTransparent();
 					FToggle(Vars::Misc::Automation::NoiseSpam, FToggleEnum::Left);
-					FDropdown(Vars::Misc::Automation::VoiceCommandSpam);
 				} EndSection();
 				if (Section("Auto-Item"))
 				{
@@ -1681,6 +1680,7 @@ void CMenu::MenuMisc(int iTab)
 					FToggle(Vars::Misc::Game::F2PChatBypass, FToggleEnum::Right);
 					FToggle(Vars::Misc::Game::NetworkFix, FToggleEnum::Left);
 					FToggle(Vars::Misc::Game::SetupBonesOptimization, FToggleEnum::Right);
+					FToggle(Vars::Misc::Game::VACBypass, FToggleEnum::Left);
 				} EndSection();
 				if (Vars::Debug::Options.Value)
 				{

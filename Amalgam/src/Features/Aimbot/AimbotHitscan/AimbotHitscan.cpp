@@ -8,6 +8,7 @@
 #include "../../Visuals/Visuals.h"
 #include "../../Simulation/MovementSimulation/MovementSimulation.h"
 #include "../../NavBot/NavBot.h"
+#include "../../../Utils/Math/SIMDMath.h"
 #include <unordered_set>
 #include <algorithm>
 
@@ -265,7 +266,136 @@ std::vector<Target_t> CAimbotHitscan::SortTargets(CTFPlayer* pLocal, CTFWeaponBa
 	return vTargets;
 }
 
+// Optimized target sorting using SIMD operations
+std::vector<Target_t> CAimbotHitscan::SortTargetsOptimized(CTFPlayer* pLocal, CTFWeaponBase* pWeapon)
+{
+	const Vec3 vEyePos = pLocal->GetShootPos();
+	const Vec3 vViewAngles = G::CurrentUserCmd->viewangles;
+	
+	// Check cache validity
+	int currentFrame = I::GlobalVars->framecount;
+	if (m_targetCache.lastFrameCount == currentFrame && 
+		m_targetCache.lastEyePos.DistToSqr(vEyePos) < 1.0f)
+	{
+		return m_targetCache.cachedTargets; // Return cached results
+	}
+	
+	auto vTargets = GetTargets(pLocal, pWeapon);
+	if (vTargets.empty()) return vTargets;
+	
+	const size_t targetCount = vTargets.size();
+	
+	// Resize SIMD caches if needed
+	m_SIMDTargetCache.resize(targetCount);
+	m_SIMDPositionCache.resize(targetCount);
+	m_FOVCache.resize(targetCount);
+	
+	// Prepare SIMD data structures
+	SIMDMath::Vec3SIMD eyePosSIMD(vEyePos);
+	SIMDMath::Vec3SIMD viewAnglesSIMD(vViewAngles);
+	
+	// Batch calculate positions and distances using SIMD
+	for (size_t i = 0; i < targetCount; ++i) LIKELY
+	{
+		const Vec3& targetPos = vTargets[i].m_vPos;
+		m_SIMDPositionCache[i] = SIMDMath::Vec3SIMD(targetPos);
+		
+		m_SIMDTargetCache[i].index = static_cast<int>(i);
+		m_SIMDTargetCache[i].distanceSqr = eyePosSIMD.DistToSqr(m_SIMDPositionCache[i]);
+	}
+	
+	// Batch calculate FOV values using optimized functions
+	std::vector<Vec3> viewAnglesArray(targetCount, vViewAngles);
+	std::vector<Vec3> targetAnglesArray(targetCount);
+	
+	for (size_t i = 0; i < targetCount; ++i) LIKELY
+	{
+		targetAnglesArray[i] = SIMDMath::CalcAngleSIMD(eyePosSIMD, m_SIMDPositionCache[i]).ToVec3();
+	}
+	
+	SIMDMath::Optimized::CalculateFOVBatch(
+		viewAnglesArray.data(), 
+		targetAnglesArray.data(), 
+		m_FOVCache.data(), 
+		static_cast<int>(targetCount)
+	);
+	
+	// Fast sorting using optimized algorithm
+	SIMDMath::Optimized::SortTargetsByDistance(m_SIMDTargetCache.data(), static_cast<int>(targetCount));
+	
+	// Reconstruct sorted targets with priorities
+	std::vector<Target_t> sortedTargets;
+	sortedTargets.reserve(targetCount);
+	
+	for (size_t i = 0; i < targetCount; ++i) LIKELY
+	{
+		int originalIndex = m_SIMDTargetCache[i].index;
+		Target_t& target = vTargets[originalIndex];
+		
+		// Apply FOV filtering with branch prediction
+		if (m_FOVCache[originalIndex] <= Vars::Aimbot::General::AimFOV.Value) LIKELY
+		{
+			target.m_flFOVTo = m_FOVCache[originalIndex];
+			target.m_flDistTo = sqrtf(m_SIMDTargetCache[i].distanceSqr);
+			sortedTargets.push_back(target);
+		}
+	}
+	
+	// Update cache
+	m_targetCache.lastEyePos = vEyePos;
+	m_targetCache.lastFrameCount = currentFrame;
+	m_targetCache.cachedTargets = sortedTargets;
+	
+	return sortedTargets;
+}
 
+// Fast visibility check for common cases
+inline bool CAimbotHitscan::QuickVisibilityCheck(const Vec3& from, const Vec3& to, CTFPlayer* pLocal, CBaseEntity* pTarget) const
+{
+	// Simple ray-cast check for quick filtering
+	CGameTrace trace = {};
+	CTraceFilterHitscan filter = {}; 
+	filter.pSkip = pLocal;
+	
+	SDK::Trace(from, to, MASK_SHOT | CONTENTS_GRATE, &filter, &trace);
+	return (trace.m_pEnt && trace.m_pEnt == pTarget);
+}
+
+// Batch distance calculation using SIMD
+void CAimbotHitscan::BatchCalculateDistances(const Vec3& eyePos, const std::vector<Target_t>& targets, float* distances) const
+{
+	SIMDMath::Vec3SIMD eyePosSIMD(eyePos);
+	
+	// Process targets in batches for better cache locality
+	const size_t targetCount = targets.size();
+	for (size_t i = 0; i < targetCount; ++i)
+	{
+		SIMDMath::Vec3SIMD targetPosSIMD(targets[i].m_vPos);
+		distances[i] = eyePosSIMD.DistTo(targetPosSIMD);
+	}
+}
+
+// Batch FOV calculation using SIMD
+void CAimbotHitscan::BatchCalculateFOV(const Vec3& viewAngles, const std::vector<Target_t>& targets, float* fovs) const
+{
+	std::vector<Vec3> viewAnglesArray(targets.size(), viewAngles);
+	std::vector<Vec3> targetAnglesArray(targets.size());
+	
+	SIMDMath::Vec3SIMD viewAnglesSIMD(viewAngles);
+	
+	for (size_t i = 0; i < targets.size(); ++i)
+	{
+		SIMDMath::Vec3SIMD targetPosSIMD(targets[i].m_vPos);
+		targetAnglesArray[i] = SIMDMath::CalcAngleSIMD(viewAnglesSIMD, targetPosSIMD).ToVec3();
+	}
+	
+	SIMDMath::Optimized::CalculateFOVBatch(
+		viewAnglesArray.data(), 
+		targetAnglesArray.data(), 
+		fovs, 
+		static_cast<int>(targets.size())
+	);
+}
 
 int CAimbotHitscan::GetHitboxPriority(int nHitbox, CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CBaseEntity* pTarget)
 {
@@ -1032,13 +1162,26 @@ bool CAimbotHitscan::Aim(Vec3 vCurAngle, Vec3 vToAngle, Vec3& vOut, int iMethod)
 		Math::ClampAngles(vOut);
 		return true;
 	}
-	case Vars::Aimbot::General::AimTypeEnum::Assistive:
+	case Vars::Aimbot::General::AimTypeEnum::Assistive: {
 		Vec3 vMouseDelta = G::CurrentUserCmd->viewangles.DeltaAngle(G::LastUserCmd->viewangles);
 		Vec3 vTargetDelta = vToAngle.DeltaAngle(G::LastUserCmd->viewangles);
 		float flMouseDelta = vMouseDelta.Length2D(), flTargetDelta = vTargetDelta.Length2D();
 		vTargetDelta = vTargetDelta.Normalized() * std::min(flMouseDelta, flTargetDelta);
 		vOut = vCurAngle - vMouseDelta + vMouseDelta.LerpAngle(vTargetDelta, Vars::Aimbot::General::AssistStrength.Value / 100.f);
 		return true;
+	}
+	case Vars::Aimbot::General::AimTypeEnum::Legit:
+	{
+		Vec3 vDelta = vToAngle - vCurAngle;
+		Math::ClampAngles(vDelta);
+
+		float flLen = vDelta.Length2D();
+		float flDiv = std::clamp(Math::RemapVal(flLen, 0.f, 90.f, 8.f, 2.f), 2.f, 8.f);
+
+		vOut = vCurAngle + vDelta / flDiv;
+		Math::ClampAngles(vOut);
+		return true;
+	}
 	}
 
 	return false;
@@ -1070,6 +1213,11 @@ void CAimbotHitscan::Aim(CUserCmd* pCmd, Vec3& vAngle, int iMethod)
 	case Vars::Aimbot::General::AimTypeEnum::Locking:
 		SDK::FixMovement(pCmd, vAngle);
 		pCmd->viewangles = vAngle;
+		break;
+	case Vars::Aimbot::General::AimTypeEnum::Legit:
+		pCmd->viewangles = vAngle;
+		I::EngineClient->SetViewAngles(vAngle);
+		break;
 	}
 }
 

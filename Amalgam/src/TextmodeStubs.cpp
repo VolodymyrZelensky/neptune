@@ -5,6 +5,8 @@
 #include "Features/Simulation/MovementSimulation/MovementSimulation.h"
 #include "Features/ImGui/Render.h"
 #include "Features/Aimbot/AimbotProjectile/AimbotProjectile.h"
+#include "SDK/Definitions/Misc/VGUI.h"
+#include "SDK/Definitions/Interfaces/IVModelRender.h"
 #include <d3d9.h>
 
 void CVisuals::RestoreWorldModulation()
@@ -92,6 +94,16 @@ float CAimbotProjectile::GetSplashRadius(CTFWeaponBase* /*pWeapon*/, CTFPlayer* 
 float CAimbotProjectile::GetSplashRadius(CBaseEntity* /*pProjectile*/, CTFWeaponBase* /*pWeapon*/, CTFPlayer* /*pPlayer*/, float /*flScale*/, CTFWeaponBase* /*pAirblast*/)
 {
     return 0.0f;
+}
+
+void IPanel_PaintTraverse(void* /*rcx*/, VPANEL /*vguiPanel*/, bool /*forceRepaint*/, bool /*allowForce*/)
+{
+    // No-op.
+}
+
+void IVModelRender_DrawModelExecute(void* /*rcx*/, const DrawModelState_t& /*pState*/, const ModelRenderInfo_t& /*pInfo*/, matrix3x4* /*pBoneToWorld*/)
+{
+    // No-op.
 }
 
 #endif // TEXTMODE 

@@ -5,6 +5,7 @@
 #include "../../Simulation/MovementSimulation/MovementSimulation.h"
 #include "../../PacketManip/AntiAim/AntiAim.h"
 #include "../../Simulation/ProjectileSimulation/ProjectileSimulation.h"
+#include "../../../Utils/Optimization/CpuOptimization.h"
 #include <cmath>
 
 // void CESP::DrawYawArrow(const Vec3& vOrigin, float flYaw, float flArrowLength, float flHeadSize, float flHeightOffset, 
@@ -153,6 +154,8 @@ MAKE_SIGNATURE(CEconItemView_GetItemName, "client.dll", "40 53 48 83 EC ? 48 8B 
 
 void CESP::Store(CTFPlayer* pLocal)
 {
+	CPU_OPT_SKIP_IF_VERY_LOW_PERF(2); // Skip ESP on very low performance
+	
 	m_mPlayerCache.clear();
 	m_mBuildingCache.clear();
 	m_mWorldCache.clear();
@@ -160,15 +163,38 @@ void CESP::Store(CTFPlayer* pLocal)
 	if (!Vars::ESP::Draw.Value || !pLocal)
 		return;
 
+	// Frame distribution for ESP components
+	static int espFrameCounter = 0;
+	espFrameCounter = (espFrameCounter + 1) % 3;
+	
+	// Always store players (most important)
 	StorePlayers(pLocal);
-	StoreBuildings(pLocal);
-	StoreProjectiles(pLocal);
-	StoreObjective(pLocal);
-	StoreWorld();
+	
+	// Distribute other expensive operations
+	switch (espFrameCounter)
+	{
+	case 0:
+		if (CPU_OPT_EXPENSIVE_FEATURE_CHECK())
+			StoreBuildings(pLocal);
+		break;
+	case 1:
+		if (CPU_OPT_EXPENSIVE_FEATURE_CHECK())
+		{
+			StoreProjectiles(pLocal);
+			StoreObjective(pLocal);
+		}
+		break;
+	case 2:
+		if (CPU_OPT_EXPENSIVE_FEATURE_CHECK())
+			StoreWorld();
+		break;
+	}
 }
 
 void CESP::StorePlayers(CTFPlayer* pLocal)
 {
+	CPU_OPT_SKIP_IF_LOW_PERF(); // Skip on low performance
+	
 	if (!(Vars::ESP::Draw.Value & Vars::ESP::DrawEnum::Players) || !Vars::ESP::Player.Value)
 		return;
 
@@ -181,12 +207,19 @@ void CESP::StorePlayers(CTFPlayer* pLocal)
 	}
 
 	auto pResource = H::Entities.GetPR();
+	
+	// Pre-calculate some expensive values
+	const int iLocalIndex = I::EngineClient->GetLocalPlayer();
+	const int iLocalTeam = pLocal->m_iTeamNum();
+	const Vec3 vLocalOrigin = pLocal->m_vecOrigin();
+	const bool bThirdPerson = I::Input->CAM_IsThirdPerson();
+	
 	for (auto pEntity : H::Entities.GetGroup(EGroupType::PLAYERS_ALL))
 	{
 		auto pPlayer = pEntity->As<CTFPlayer>();
 		int iIndex = pPlayer->entindex();
 
-		bool bLocal = iIndex == I::EngineClient->GetLocalPlayer();
+		bool bLocal = iIndex == iLocalIndex;
 		bool bSpectate = iObserverMode == OBS_MODE_FIRSTPERSON || iObserverMode == OBS_MODE_THIRDPERSON;
 		bool bTarget = bSpectate && pObserverTarget == pPlayer;
 
@@ -195,11 +228,17 @@ void CESP::StorePlayers(CTFPlayer* pLocal)
 
 		if (bLocal || bTarget)
 		{
-			if (!(Vars::ESP::Player.Value & Vars::ESP::PlayerEnum::Local) || (!bSpectate ? !I::Input->CAM_IsThirdPerson() && bLocal : iObserverMode == OBS_MODE_FIRSTPERSON && bTarget))
+			if (!(Vars::ESP::Player.Value & Vars::ESP::PlayerEnum::Local) || (!bSpectate ? !bThirdPerson && bLocal : iObserverMode == OBS_MODE_FIRSTPERSON && bTarget))
 				continue;
 		}
 		else
 		{
+			// Early distance check to avoid expensive operations on far players
+			const Vec3 vDelta = pPlayer->m_vecOrigin() - vLocalOrigin;
+			const float flDistance = vDelta.Length2D();
+			if (flDistance >= Vars::ESP::MaxDist.Value) 
+				continue;
+
 			if (pPlayer->IsDormant())
 			{
 				if (!H::Entities.GetDormancy(iIndex) || !Vars::ESP::DormantAlpha.Value
@@ -207,20 +246,21 @@ void CESP::StorePlayers(CTFPlayer* pLocal)
 					continue;
 			}
 
+			// Cache team check
+			const bool bIsEnemy = pPlayer->m_iTeamNum() != iLocalTeam;
 			if (!(Vars::ESP::Player.Value & Vars::ESP::PlayerEnum::Prioritized && F::PlayerUtils.IsPrioritized(iIndex))
 				&& !(Vars::ESP::Player.Value & Vars::ESP::PlayerEnum::Friends && H::Entities.IsFriend(iIndex))
 				&& !(Vars::ESP::Player.Value & Vars::ESP::PlayerEnum::Party && H::Entities.InParty(iIndex))
-				&& !(pPlayer->m_iTeamNum() != pLocal->m_iTeamNum() ? Vars::ESP::Player.Value & Vars::ESP::PlayerEnum::Enemy : Vars::ESP::Player.Value & Vars::ESP::PlayerEnum::Team))
+				&& !(bIsEnemy ? Vars::ESP::Player.Value & Vars::ESP::PlayerEnum::Enemy : Vars::ESP::Player.Value & Vars::ESP::PlayerEnum::Team))
 				continue;
 		}
 
 		int iClassNum = pPlayer->m_iClass();
 		auto pWeapon = pPlayer->m_hActiveWeapon().Get()->As<CTFWeaponBase>();
 
-		// distance things
-		const Vec3 vDelta = pPlayer->m_vecOrigin() - pLocal->m_vecOrigin();
+		// Use pre-calculated distance
+		const Vec3 vDelta = pPlayer->m_vecOrigin() - vLocalOrigin;
 		const float flDistance = vDelta.Length2D();
-		if (flDistance >= Vars::ESP::MaxDist.Value) { continue; }
 
 		const bool bDormant = pPlayer->IsDormant();
 		float flAlpha = bDormant ? Vars::ESP::DormantAlpha.Value : Vars::ESP::ActiveAlpha.Value;

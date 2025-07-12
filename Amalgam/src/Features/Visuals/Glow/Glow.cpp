@@ -656,6 +656,13 @@ void CGlow::Initialize()
 {
 	int nWidth, nHeight; I::MatSystemSurface->GetScreenSize(nWidth, nHeight);
 
+	// If the screen size isn’t available yet (happens during very early load
+	// stages) GetScreenSize can return 0 × 0.  Creating a render target of
+	// size 0 will make shaderapidx9 crash inside materialsystem, so clamp the
+	// dimensions to a sensible minimum.
+	if (nWidth < 1)  nWidth  = 1;
+	if (nHeight < 1) nHeight = 1;
+
 	if (!m_pMatGlowColor)
 	{
 		m_pMatGlowColor = I::MaterialSystem->FindMaterial("dev/glow_color", TEXTURE_GROUP_OTHER);
