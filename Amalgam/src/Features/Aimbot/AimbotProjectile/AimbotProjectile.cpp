@@ -5,7 +5,7 @@
 #include "../../Simulation/ProjectileSimulation/ProjectileSimulation.h"
 #include "../../Ticks/Ticks.h"
 #include "../../Visuals/Visuals.h"
-#include "../../NavBot/NavBot.h"
+#include "../../NavBot/NBheader.h"
 #include "../AutoAirblast/AutoAirblast.h"
 #include <algorithm>
 

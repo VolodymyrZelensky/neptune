@@ -4,6 +4,7 @@
 #include <vector>
 #include <unordered_map>
 #include <format>
+#include "NavEngine/NavCommon.h"
 
 enum slots
 {
@@ -73,7 +74,6 @@ private:
 	std::vector<Vector> m_vSniperSpots;
 	std::vector<Vector> m_vBuildingSpots;
 	std::optional<Vector> vCurrentBuildingSpot;
-	std::unordered_map<int, bool> m_mAutoScopeCache;
 	int m_iMySentryIdx = -1;
 	int m_iMyDispenserIdx = -1;
 	int m_iBuildAttempts = 0;
@@ -162,7 +162,6 @@ private:
 	slots GetReloadWeaponSlot(CTFPlayer* pLocal, ClosestEnemy_t tClosestEnemy);
 	slots GetBestSlot(CTFPlayer* pLocal, slots eActiveSlot, ClosestEnemy_t tClosestEnemy);
 	void UpdateSlot(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, ClosestEnemy_t tClosestEnemy);
-	void AutoScope(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUserCmd* pCmd);
 
 	void UpdateClassConfig(CTFPlayer* pLocal, CTFWeaponBase* pWeapon);
 	void HandleMinigunSpinup(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUserCmd* pCmd, const ClosestEnemy_t& tClosestEnemy);
@@ -174,7 +173,6 @@ private:
 public:
 	void Run(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUserCmd* pCmd);
 	void Reset();
-	void Draw(CTFPlayer* pLocal);
 };
 
 ADD_FEATURE(CNavBot, NavBot);

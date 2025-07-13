@@ -1465,8 +1465,15 @@ Color_t CESP::GetColor(CTFPlayer* pLocal, CBaseEntity* pEntity)
 
 bool CESP::GetDrawBounds(CBaseEntity* pEntity, float& x, float& y, float& w, float& h)
 {
-	if (!pEntity || pEntity->IsDormant())
+	if (!pEntity)
 		return false;
+
+	if (auto pListEnt = I::ClientEntityList->GetClientEntity(pEntity->entindex()); pListEnt != pEntity)
+		return false;
+
+	if (pEntity->IsDormant())
+		return false;
+
 	Vec3 vOrigin = pEntity->GetAbsOrigin();
 	matrix3x4 mTransform = { { 1, 0, 0, vOrigin.x }, { 0, 1, 0, vOrigin.y }, { 0, 0, 1, vOrigin.z } };
 	//if (pEntity->entindex() == I::EngineClient->GetLocalPlayer())

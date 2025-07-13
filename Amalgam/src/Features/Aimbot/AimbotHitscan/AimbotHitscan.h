@@ -57,6 +57,8 @@ private:
 	
 	// Fast path for common cases
 	inline bool QuickVisibilityCheck(const Vec3& from, const Vec3& to, CTFPlayer* pLocal, CBaseEntity* pTarget) const;
+	bool HasEnemiesInRange(CTFPlayer* pLocal, float flRange) const;
+	bool NavBotNeedsJump(CTFPlayer* pLocal) const;
 	
 	// SIMD batch operations
 	void BatchCalculateDistances(const Vec3& eyePos, const std::vector<Target_t>& targets, float* distances) const;

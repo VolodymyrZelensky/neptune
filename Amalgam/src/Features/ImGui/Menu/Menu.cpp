@@ -339,6 +339,11 @@ void CMenu::MenuAimbot(int iTab)
 						FSlider(Vars::Aimbot::Hitscan::TapFireDist);
 					}
 					PopTransparent();
+					PushTransparent(!(Vars::Aimbot::Hitscan::Modifiers.Value & Vars::Aimbot::Hitscan::ModifiersEnum::DistanceAutoscope));
+					{
+						FSlider(Vars::Aimbot::Hitscan::DistanceAutoscopeRange);
+					}
+					PopTransparent();
 				} EndSection();
 				if (Vars::Debug::Options.Value)
 				{
@@ -1633,7 +1638,6 @@ void CMenu::MenuMisc(int iTab)
 					FToggle(Vars::Misc::Automation::AcceptItemDrops, FToggleEnum::Left);
 					FToggle(Vars::Misc::Automation::AutoVote, FToggleEnum::Right);
 					FToggle(Vars::Misc::Automation::RandomVotekick, FToggleEnum::Left);
-					FToggle(Vars::Misc::Automation::ChatSpam::Enable, FToggleEnum::Right);
 					FToggle(Vars::CheaterDetection::AutoIgnoreThai, FToggleEnum::Left);
 					FToggle(Vars::Misc::Automation::AutoVoteMap, FToggleEnum::Right);
 					PushTransparent(!Vars::Misc::Automation::AutoVoteMap);
@@ -1647,7 +1651,6 @@ void CMenu::MenuMisc(int iTab)
 						FSlider(Vars::Misc::Automation::StealIdentityInterval, FSliderEnum::Right);
 					}
 					PopTransparent();
-					FToggle(Vars::Misc::Automation::NoiseSpam, FToggleEnum::Left);
 				} EndSection();
 				if (Section("Auto-Item"))
 				{
@@ -1761,11 +1764,6 @@ void CMenu::MenuNavEng(int iTab)
 					FColorPicker(Vars::Colors::NavbotCool, FColorPickerEnum::SameLine);
 						FSlider(Vars::NavEng::NavEngine::CoolRange, FSliderEnum::None);
 						FDropdown(Vars::NavEng::NavEngine::LookAtPath);
-						FDropdown(Vars::NavEng::NavBot::AutoScope);
-						PushTransparent(Transparent || !Vars::NavEng::NavBot::AutoScope);
-						{
-							FSlider(Vars::NavEng::NavBot::AutoScopeCancelTime, FSliderEnum::None);
-						}
 						PopTransparent();
 						FDropdown(Vars::NavEng::NavBot::WeaponSlot, FDropdownEnum::Left);
 						FDropdown(Vars::Misc::Automation::ForceClass, { "Off", "Scout", "Soldier", "Pyro", "Demoman", "Heavy", "Engineer", "Medic", "Sniper", "Spy" }, { 0,1,3,7,4,6,9,5,2,8 }, FDropdownEnum::Right);
@@ -1867,8 +1865,6 @@ void CMenu::MenuNavEng(int iTab)
 					{
 						FSlider(Vars::NavEng::NavBot::StickyDangerRange);
 						FSlider(Vars::NavEng::NavBot::ProjectileDangerRange);
-						FToggle(Vars::NavEng::NavBot::AutoScopeUseCachedResults);
-						FTooltip("should double the performance of the movesim method by only checking every 2nd tick");
 					} EndSection();
 				}
 				if (Section("Queueing"))

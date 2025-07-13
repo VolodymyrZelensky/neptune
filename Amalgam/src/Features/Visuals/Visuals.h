@@ -35,6 +35,7 @@ public:
 	void DrawPickupTimers();
 	void DrawDebugInfo(CTFPlayer* pLocal);
 	void DrawNavEngine();
+	void DrawNavBot(CTFPlayer* pLocal);
 
 	std::vector<DrawBox_t> GetHitboxes(matrix3x4* aBones, CBaseAnimating* pEntity, std::vector<int> vHitboxes = {}, int iTarget = -1);
 	void DrawEffects();

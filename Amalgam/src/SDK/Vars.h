@@ -343,10 +343,11 @@ namespace Vars
 				VA_LIST("Head", "Body", "Pelvis", "Arms", "Legs", "##Divider", "Bodyaim if lethal"),
 				Head = 1 << 0, Body = 1 << 1, Pelvis = 1 << 2, Arms = 1 << 3, Legs = 1 << 4, BodyaimIfLethal = 1 << 5);
 			CVarEnum(Modifiers, VA_LIST("Modifiers", "Hitscan modifiers"), 0b0100000, DROPDOWN_MULTI, nullptr,
-				VA_LIST("Tapfire", "Wait for headshot", "Wait for charge", "Scoped only", "Auto scope", "Auto rev minigun", "Extinguish team"),
-				Tapfire = 1 << 0, WaitForHeadshot = 1 << 1, WaitForCharge = 1 << 2, ScopedOnly = 1 << 3, AutoScope = 1 << 4, AutoRev = 1 << 5, ExtinguishTeam = 1 << 6);
+				VA_LIST("Tapfire", "Wait for headshot", "Wait for charge", "Scoped only", "Auto scope", "Auto rev minigun", "Extinguish team", "Distance-based autoscope"),
+				Tapfire = 1 << 0, WaitForHeadshot = 1 << 1, WaitForCharge = 1 << 2, ScopedOnly = 1 << 3, AutoScope = 1 << 4, AutoRev = 1 << 5, ExtinguishTeam = 1 << 6, DistanceAutoscope = 1 << 7);
 			CVar(PointScale, "Point scale", 0.f, SLIDER_CLAMP | SLIDER_PRECISION, 0.f, 100.f, 5.f, "%g%%");
 			CVar(TapFireDist, "Tapfire distance", 1000.f, SLIDER_MIN | SLIDER_PRECISION, 250.f, 1000.f, 50.f);
+			CVar(DistanceAutoscopeRange, "Distance autoscope range", 1950.f, SLIDER_MIN | SLIDER_PRECISION, 500.f, 3000.f, 50.f);
 			CVar(TargetEveryone, "Target everyone directly", false);
 			
 			CVar(ShootingDelayEnabled, "Shooting delay enabled", false);
@@ -1278,10 +1279,6 @@ namespace Vars
 				VA_LIST("Off", "On", "If not fakelagging"),
 				Off, Always, WaitForFL);
 			CVar(RechargeDTDelay, "Recharge DT delay", 5, SLIDER_MIN, 0, 10, 1, "%is");
-			CVarEnum(AutoScope, "Auto scope", 0, NONE, nullptr,
-				VA_LIST("Off", "Simple", "MoveSim"),
-				Off, Simple, MoveSim);
-			CVar(AutoScopeCancelTime, "Auto scope cancel time", 3, SLIDER_MIN, 1, 5, 1, "%is");
 			CVarEnum(Preferences, "Preferences", 0b0, DROPDOWN_MULTI, "None",
 				VA_LIST("Get health", "Get ammo", "Reload weapons", "Stalk enemies", "Defend objectives", "Capture objectives", "Help capture objectives", "Escape danger", "Safe capping", "Target sentries", "Auto engie", "##Divider", "Target sentries low range", "Help capture objective friend only", "Dont escape danger with intel", "Group with others"),
 				SearchHealth = 1 << 0, SearchAmmo = 1 << 1, ReloadWeapons = 1 << 2, StalkEnemies = 1 << 3, DefendObjectives = 1 << 4, CaptureObjectives = 1 << 5, HelpCaptureObjectives = 1 << 6, EscapeDanger = 1 << 7, SafeCapping = 1 << 8, TargetSentries = 1 << 9, AutoEngie = 1 << 10, TargetSentriesLowRange = 1 << 11, HelpFriendlyCaptureObjectives = 1 << 12, DontEscapeDangerIntel = 1 << 13, GroupWithOthers = 1 << 14);
@@ -1290,7 +1287,6 @@ namespace Vars
 			CVar(PreferCenterPaths, "Prefer center paths", false);
 			CVar(StickyDangerRange, "Sticky danger range", 600, NOSAVE | DEBUGVAR, 50, 1500, 50);
 			CVar(ProjectileDangerRange, "Projectile danger range", 600, NOSAVE | DEBUGVAR, 50, 1500, 50);
-			CVar(AutoScopeUseCachedResults, "Auto scope use cached results", true, NOSAVE | DEBUGVAR);
 			CVar(Priority_patrol,            "Priority patrol",               5,  VISUAL | SLIDER_MIN, 0, 20, 1, "%i");
 			CVar(Priority_lowprio_health,    "Priority low-prio health",      6,  VISUAL | SLIDER_MIN, 0, 20, 1, "%i");
 			CVar(Priority_staynear,          "Priority stay near",            7,  VISUAL | SLIDER_MIN, 0, 20, 1, "%i");

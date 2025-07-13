@@ -9,7 +9,7 @@
 #include "CameraWindow/CameraWindow.h"
 #include "../Players/PlayerUtils.h"
 #include "../Spectate/Spectate.h"
-#include "../NavBot/NavBot.h"
+#include "../NavBot/NBheader.h"
 #include "../CritHack/CritHack.h"
 #include "../Misc/NamedPipe/Namedpipe.h"
 #include <queue>
@@ -674,16 +674,125 @@ void CVisuals::DrawNavEngine()
 		{
 			if (!pBlacklist->empty())
 			{
+				const Color_t enemyColor    = Vars::Colors::NavbotCool.Value;      // blue
+				const Color_t stickyColor   = Vars::Colors::NavbotArea.Value;      // green
+				const Color_t sentryColor   = Color_t(255, 255,   0, 180);         // yellow
+				const Color_t buildspotColor= Color_t(255,   0, 255, 180);         // magenta
+				const Color_t blockColor    = Vars::Colors::NavbotBlacklist.Value; // red
 				for (auto& tBlacklistedArea : *pBlacklist)
 				{
-					H::Draw.RenderBox(tBlacklistedArea.first->m_center, Vector(-4.0f, -4.0f, -1.0f), Vector(4.0f, 4.0f, 1.0f), Vector(), Vars::Colors::NavbotBlacklist.Value, false);
-					H::Draw.RenderWireframeBox(tBlacklistedArea.first->m_center, Vector(-4.0f, -4.0f, -1.0f), Vector(4.0f, 4.0f, 1.0f), Vector(), Vars::Colors::NavbotBlacklist.Value, false);
+					auto reason = tBlacklistedArea.second.value;
+					Color_t color;
+					switch (reason)
+					{
+					case BR_ENEMY_NORMAL:
+					case BR_ENEMY_DORMANT:
+					case BR_ENEMY_INVULN:
+						color = enemyColor; break;
+					case BR_STICKY:
+						color = stickyColor; break;
+					case BR_SENTRY:
+					case BR_SENTRY_MEDIUM:
+					case BR_SENTRY_LOW:
+						color = sentryColor; break;
+					case BR_BAD_BUILDING_SPOT:
+						color = buildspotColor; break;
+					default:
+						color = blockColor; break;
+					}
+					H::Draw.RenderBox(
+						tBlacklistedArea.first->m_center,
+						Vector(-4.0f, -4.0f, -1.0f),
+						Vector( 4.0f,  4.0f,  1.0f),
+						Vector(), color, false
+					);
+					H::Draw.RenderWireframeBox(
+						tBlacklistedArea.first->m_center,
+						Vector(-4.0f, -4.0f, -1.0f),
+						Vector( 4.0f,  4.0f,  1.0f),
+						Vector(), color, false
+					);
 				}
 			}
 		}
 	}
 
-
+	if (Vars::NavEng::NavEngine::Draw.Value & Vars::NavEng::NavEngine::DrawEnum::Cool)
+	{
+		Vector vLocalOrigin = pLocal->GetAbsOrigin();
+		auto pLocalArea = F::NavEngine.map->findClosestNavSquare(vLocalOrigin);
+		
+		if (pLocalArea)
+		{
+			const float flMaxDistance = static_cast<float>(Vars::NavEng::NavEngine::CoolRange.Value);
+			
+			std::vector<CNavArea*> areasToRender;
+			std::unordered_set<CNavArea*> checkedAreas;
+			std::queue<CNavArea*> areaQueue;
+			
+			areaQueue.push(pLocalArea);
+			checkedAreas.insert(pLocalArea);
+			
+			while (!areaQueue.empty())
+			{
+				CNavArea* pCurrentArea = areaQueue.front();
+				areaQueue.pop();
+				
+				float flDistance = pCurrentArea->m_center.DistTo(vLocalOrigin);
+				if (flDistance <= flMaxDistance)
+				{
+					areasToRender.push_back(pCurrentArea);
+					
+					for (NavConnect& tConnection : pCurrentArea->m_connections)
+					{
+						if (!tConnection.area || checkedAreas.count(tConnection.area))
+							continue;
+						
+						areaQueue.push(tConnection.area);
+						checkedAreas.insert(tConnection.area);
+					}
+				}
+			}
+			
+			// Create a set for fast lookup of areas to render
+			std::unordered_set<CNavArea*> renderSet(areasToRender.begin(), areasToRender.end());
+			
+			const Color_t baseColor = Vars::Colors::NavbotCool.Value;
+			
+			for (auto pArea : areasToRender)
+			{
+				float flDistance = (pArea->m_center - vLocalOrigin).Length();
+				int alpha = std::max(55, 255 - static_cast<int>((flDistance / flMaxDistance) * 200));
+				
+				Color_t areaColor = Color_t(baseColor.r, baseColor.g, baseColor.b, alpha);
+				
+				H::Draw.RenderBox(pArea->m_center, Vector(-4.0f, -4.0f, -1.0f), Vector(4.0f, 4.0f, 1.0f), 
+					Vector(), areaColor, false);
+				H::Draw.RenderWireframeBox(pArea->m_center, Vector(-4.0f, -4.0f, -1.0f), Vector(4.0f, 4.0f, 1.0f), 
+					Vector(), areaColor, false);
+				
+				// Draw area boundaries
+				H::Draw.RenderLine(pArea->m_nwCorner, pArea->getNeCorner(), areaColor, true);
+				H::Draw.RenderLine(pArea->m_nwCorner, pArea->getSwCorner(), areaColor, true);
+				H::Draw.RenderLine(pArea->getNeCorner(), pArea->m_seCorner, areaColor, true);
+				H::Draw.RenderLine(pArea->getSwCorner(), pArea->m_seCorner, areaColor, true);
+				
+				// Draw connections to other areas in render set
+				for (NavConnect& tConnection : pArea->m_connections)
+				{
+					if (!tConnection.area || !renderSet.count(tConnection.area))
+						continue;
+					
+					Color_t connectionColor = Color_t(
+						std::min(255, baseColor.r + 50),
+						std::min(255, baseColor.g + 50),
+						std::min(255, baseColor.b + 50),
+						std::max(30, alpha - 50));
+					H::Draw.RenderLine(pArea->m_center, tConnection.area->m_center, connectionColor, false);
+				}
+			}
+		}
+	}
 
 	if (Vars::NavEng::NavEngine::Draw.Value & Vars::NavEng::NavEngine::DrawEnum::Area)
 	{
@@ -1070,6 +1179,91 @@ void CVisuals::RestoreWorldModulation()
 {
 	ApplyModulation({ 255, 255, 255, 255 });
 	ApplyModulation({ 255, 255, 255, 255 }, true);
+}
+
+void CVisuals::DrawNavBot(CTFPlayer* pLocal)
+{
+	if (!(Vars::Menu::Indicators.Value & Vars::Menu::IndicatorsEnum::NavBot) || !pLocal->IsAlive())
+		return;
+
+	auto bIsReady = F::NavEngine.isReady();
+	if (!Vars::Debug::Info.Value && !bIsReady)
+		return;
+
+	int x = Vars::Menu::NavBotDisplay.Value.x;
+	int y = Vars::Menu::NavBotDisplay.Value.y + 8;
+	const auto& fFont = H::Fonts.GetFont(FONT_INDICATORS);
+	const int nTall = fFont.m_nTall + H::Draw.Scale(1);
+
+	EAlign align = ALIGN_TOP;
+	if (x <= 100 + H::Draw.Scale(50, Scale_Round))
+	{
+		x -= H::Draw.Scale(42, Scale_Round);
+		align = ALIGN_TOPLEFT;
+	}
+	else if (x >= H::Draw.m_nScreenW - 100 - H::Draw.Scale(50, Scale_Round))
+	{
+		x += H::Draw.Scale(42, Scale_Round);
+		align = ALIGN_TOPRIGHT;
+	}
+
+	const auto& cColor = F::NavEngine.isPathing() ? Vars::Menu::Theme::Active.Value : Vars::Menu::Theme::Inactive.Value;
+	const auto& cReadyColor = bIsReady ? Vars::Menu::Theme::Active.Value : Vars::Menu::Theme::Inactive.Value;
+	auto local_area = F::NavEngine.findClosestNavSquare(pLocal->GetAbsOrigin());
+	const int iInSpawn = local_area ? local_area->m_TFattributeFlags & (TF_NAV_SPAWN_ROOM_BLUE | TF_NAV_SPAWN_ROOM_RED | TF_NAV_SPAWN_ROOM_EXIT) : -1;
+	std::wstring sJob = L"None";
+	switch (F::NavEngine.current_priority)
+	{
+	case patrol:
+		sJob = F::NavBot.m_bDefending ? L"Defend" : L"Patrol";
+		break;
+	case lowprio_health:
+		sJob = L"Get health (Low-Prio)";
+		break;
+	case staynear:
+		sJob = std::format(L"Follow enemy ( {} )", F::NavBot.m_sFollowTargetName.data());
+		break;
+	case run_reload:
+		sJob = L"Run reload";
+		break;
+	case run_safe_reload:
+		sJob = L"Run safe reload";
+		break;
+	case snipe_sentry:
+		sJob = L"Snipe sentry";
+		break;
+	case ammo:
+		sJob = L"Get ammo";
+		break;
+	case capture:
+		sJob = L"Capture";
+		break;
+	case prio_melee:
+		sJob = L"Melee";
+		break;
+	case engineer:
+		sJob = std::format(L"Engineer ({})", F::NavBot.m_sEngineerTask.data());
+		break;
+	case health:
+		sJob = L"Get health";
+		break;
+	case escape_spawn:
+		sJob = L"Escape spawn";
+		break;
+	case danger:
+		sJob = L"Escape danger";
+		break;
+	default:
+		break;
+	}
+
+	H::Draw.StringOutlined(fFont, x, y, cColor, Vars::Menu::Theme::Background.Value, align, std::format(L"Job: {} {}", sJob, std::wstring(F::CritHack.m_bForce ? L"(Crithack on)" : L"")).data());
+	if (Vars::Debug::Info.Value)
+	{
+		H::Draw.StringOutlined(fFont, x, y += nTall, cReadyColor, Vars::Menu::Theme::Background.Value, align, std::format("Is ready: {}", std::to_string(bIsReady)).c_str());
+		H::Draw.StringOutlined(fFont, x, y += nTall, cReadyColor, Vars::Menu::Theme::Background.Value, align, std::format("In spawn: {}", std::to_string(iInSpawn)).c_str());
+		H::Draw.StringOutlined(fFont, x, y += nTall, cReadyColor, Vars::Menu::Theme::Background.Value, align, std::format("Area flags: {}", std::to_string(local_area ? local_area->m_TFattributeFlags : -1)).c_str());
+	}
 }
 
 void CVisuals::CreateMove(CTFPlayer* pLocal, CTFWeaponBase* pWeapon)

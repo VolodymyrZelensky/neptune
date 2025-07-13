@@ -1130,8 +1130,12 @@
     <ClCompile Include="src\Features\ImGui\Render.cpp" />
     <ClCompile Include="src\Features\ImGui\Menu\Menu.cpp" />
     <ClCompile Include="src\Features\Misc\AutoVote\AutoVote.cpp" />
-    <ClCompile Include="src\Features\NavBot\NavBot.cpp" />
-    <ClCompile Include="src\Features\NavBot\FollowBot.cpp" />
+    <ClCompile Include="src\Features\NavBot\NBcore.cpp" />
+    <ClCompile Include="src\Features\NavBot\NBengi.cpp" />
+    <ClCompile Include="src\Features\NavBot\NBcord.cpp" />
+    <ClCompile Include="src\Features\NavBot\NBdanger.cpp" />
+    <ClCompile Include="src\Features\NavBot\NButils.cpp" />
+    <ClCompile Include="src\Features\NavBot\Fbot.cpp" />
     <ClCompile Include="src\Features\NavBot\NavEngine\Controllers\Controller.cpp" />
     <ClCompile Include="src\Features\NavBot\NavEngine\Controllers\CPController\CPController.cpp" />
     <ClCompile Include="src\Features\NavBot\NavEngine\Controllers\FlagController\FlagController.cpp" />
@@ -1470,8 +1474,8 @@
     <ClInclude Include="src\Features\Misc\Misc.h" />
     <ClInclude Include="src\Features\Misc\HitSounds.h" />
     <ClInclude Include="src\Features\Misc\HitSoundBytes.h" />
-    <ClInclude Include="src\Features\NavBot\NavBot.h" />
-    <ClInclude Include="src\Features\NavBot\FollowBot.h" />
+    <ClInclude Include="src\Features\NavBot\NBheader.h" />
+    <ClInclude Include="src\Features\NavBot\Fbot.h" />
     <ClInclude Include="src\Features\NavBot\NavEngine\Controllers\Controller.h" />
     <ClInclude Include="src\Features\NavBot\NavEngine\Controllers\CPController\CPController.h" />
     <ClInclude Include="src\Features\NavBot\NavEngine\Controllers\FlagController\FlagController.h" />
@@ -1481,6 +1485,7 @@
     <ClInclude Include="src\Features\NavBot\NavEngine\FileReader\nav.h" />
     <ClInclude Include="src\Features\NavBot\NavEngine\MicroPather\micropather.h" />
     <ClInclude Include="src\Features\NavBot\NavEngine\NavEngine.h" />
+    <ClInclude Include="src\Features\NavBot\NavEngine\NavCommon.h" />
     <ClInclude Include="src\Features\NavBot\NavEngine\NavEngineOptimized.h" />
     <ClInclude Include="src\Features\Misc\NamedPipe\NamedPipe.h" />
     <ClInclude Include="src\Features\Misc\NamedPipe\NamedPipeUtils.h" />

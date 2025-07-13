@@ -31,7 +31,6 @@ MAKE_HOOK(CClientModeShared_DoPostScreenSpaceEffects, U::Memory.GetVirtual(I::Cl
 	if (F::CameraWindow.m_bDrawing)
 		return CALL_ORIGINAL(rcx, pSetup);
 
-	F::NavEngine.Render();
 	F::Visuals.DrawEffects();
 	F::Chams.m_mEntities.clear();
 	if (!I::EngineVGui->IsGameUIVisible() && pLocal && F::Materials.m_bLoaded)

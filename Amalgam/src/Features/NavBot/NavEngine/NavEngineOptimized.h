@@ -5,10 +5,10 @@
 #include "../../../Utils/Math/SIMDMath.h"
 #include <unordered_set>
 #include <functional>
+#include "NavCommon.h"
 
 namespace NavEngineOptimized
 {
-    // Spatial partitioning grid for fast area lookup
     struct SpatialGrid
     {
         static constexpr int GRID_SIZE = 512; // 512x512 unit cells
@@ -350,7 +350,6 @@ namespace NavEngineOptimized
         }
     };
     
-    // Main optimized navigation engine
     class OptimizedNavEngine
     {
     private:

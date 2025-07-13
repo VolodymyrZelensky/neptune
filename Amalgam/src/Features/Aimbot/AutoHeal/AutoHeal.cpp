@@ -1,7 +1,7 @@
 #include "AutoHeal.h"
 
 #include "../../Players/PlayerUtils.h"
-#include "../../NavBot/FollowBot.h"
+#include "../../NavBot/Fbot.h"
 #include "../../Backtrack/Backtrack.h"
 #include "../../CritHack/CritHack.h"
 #include "../../Simulation/ProjectileSimulation/ProjectileSimulation.h"

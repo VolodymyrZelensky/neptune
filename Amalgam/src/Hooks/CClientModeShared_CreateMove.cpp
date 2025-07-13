@@ -15,8 +15,8 @@
 #include "../Features/Spectate/Spectate.h"
 #include "../Features/NavBot/NavEngine/Controllers/Controller.h"
 #include "../Features/NavBot/NavEngine/NavEngine.h"
-#include "../Features/NavBot/NavBot.h"
-#include "../Features/NavBot/FollowBot.h"
+#include "../Features/NavBot/NBheader.h"
+#include "../Features/NavBot/Fbot.h"
 #include "../Features/AutoJoin/AutoJoin.h"
 #include "../Features/Misc/AutoItem/AutoItem.h"
 

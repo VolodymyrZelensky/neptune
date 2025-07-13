@@ -68,7 +68,6 @@ namespace
 
 void CMisc::RunPre(CTFPlayer* pLocal, CUserCmd* pCmd)
 {
-	// Initialize CPU optimization system
 	static bool systemInitialized = false;
 	if (!systemInitialized)
 	{
@@ -78,21 +77,17 @@ void CMisc::RunPre(CTFPlayer* pLocal, CUserCmd* pCmd)
 		systemInitialized = true;
 	}
 
-	// Update optimization system
 	CpuOptimization::g_OptimizationManager.Update();
 
-	// Use frequency controller for less critical functions
 	static bool frameDistribution = false;
 	frameDistribution = !frameDistribution;
-	
-	// High priority functions (every frame)
+
 	if (CPU_OPT_EXPENSIVE_FEATURE_CHECK())
 	{
 		CheatsBypass();
 		WeaponSway();
 	}
 
-	// Medium priority functions (every other frame)
 	if (frameDistribution)
 	{
 		NoiseSpam(pLocal);
@@ -105,10 +100,9 @@ void CMisc::RunPre(CTFPlayer* pLocal, CUserCmd* pCmd)
 		BotNetworking();
 	}
 
-	// Low priority functions (distributed)
 	static int lowPriorityCounter = 0;
 	lowPriorityCounter = (lowPriorityCounter + 1) % 4;
-	
+
 	switch (lowPriorityCounter)
 	{
 	case 0: AutoReport(); break;
@@ -140,20 +134,17 @@ void CMisc::RunPre(CTFPlayer* pLocal, CUserCmd* pCmd)
 		AchievementSpam(pLocal);
 	}
 
-	// Early exit for invalid movement states
-	if (!pLocal->IsAlive() || pLocal->IsAGhost() || pLocal->m_MoveType() != MOVETYPE_WALK || 
+	if (!pLocal->IsAlive() || pLocal->IsAGhost() || pLocal->m_MoveType() != MOVETYPE_WALK ||
 		pLocal->IsSwimming() || pLocal->InCond(TF_COND_SHIELD_CHARGE) || pLocal->InCond(TF_COND_HALLOWEEN_KART))
 		return;
 
-	// Movement functions (high priority)
 	AutoJump(pLocal, pCmd);
 	EdgeJump(pLocal, pCmd);
 	AutoJumpbug(pLocal, pCmd);
 	AutoStrafe(pLocal, pCmd);
 	AutoPeek(pLocal, pCmd);
 	BreakJump(pLocal, pCmd);
-	
-	// Cache server identifier less frequently
+
 	static FastTimer serverIdTimer{};
 	if (serverIdTimer.Run(2.0f))
 		m_sServerIdentifier = GetServerIdentifier();
@@ -171,8 +162,6 @@ void CMisc::RunPost(CTFPlayer* pLocal, CUserCmd* pCmd, bool pSendPacket)
 	BreakShootSound(pLocal, pCmd);
 	MovementLock(pLocal, pCmd);
 }
-
-
 
 void CMisc::AutoJump(CTFPlayer* pLocal, CUserCmd* pCmd)
 {
@@ -925,7 +914,6 @@ void CMisc::NoiseSpam(CTFPlayer* pLocal)
 
 void CMisc::VoiceCommandSpam(CTFPlayer* pLocal)
 {
-	CPU_OPT_SKIP_IF_LOW_PERF();
 	
 	if (!Vars::Misc::Automation::VoiceCommandSpam.Value || !pLocal || !pLocal->IsAlive())
 		return;
@@ -1247,153 +1235,159 @@ void CMisc::CallVoteSpam(CTFPlayer* pLocal)
 // lmaobox if(crash){(dontcrash)} method down here
 void CMisc::ChatSpam(CTFPlayer* pLocal)
 {
-	CPU_OPT_SKIP_IF_VERY_LOW_PERF(2); // Skip on very low performance
-	
 	if (!Vars::Misc::Automation::ChatSpam::Enable.Value || !pLocal || !I::EngineClient)
 	{
 		m_tChatSpamTimer.Update();
 		return;
 	}
 
-	// Early validation with minimal overhead
-	if (!I::EngineClient->IsInGame() || !I::EngineClient->IsConnected() ||
-		pLocal->m_iTeamNum() <= 1 || pLocal->m_iClass() == TF_CLASS_UNDEFINED)
+	try
+	{
+		if (!I::EngineClient->IsInGame() || !I::EngineClient->IsConnected())
+		{
+			m_tChatSpamTimer.Update();
+			return;
+		}
+
+		if (pLocal->m_iTeamNum() <= 1 || pLocal->m_iClass() == TF_CLASS_UNDEFINED)
+		{
+			m_tChatSpamTimer.Update();
+			return;
+		}
+	}
+	catch (...)
 	{
 		m_tChatSpamTimer.Update();
 		return;
 	}
 
-	// Cache lines on first use or when empty
 	if (m_vChatSpamLines.empty())
 	{
-		static std::vector<std::string> defaults = {
+		std::vector<std::string> defaults = {
 			"Chatspam is highly customizable",
-			"Check misc.cpp for more info", 
+			"Check misc.cpp for more info",
 			"dsc.gg/nptntf",
 			"dont call me bro"
 		};
 		LoadLines("ChatSpam", "cat_chatspam.txt", defaults, m_vChatSpamLines);
 	}
 
-	// Apply performance-based interval scaling
-	float spamInterval = std::max(0.2f, Vars::Misc::Automation::ChatSpam::Interval.Value * CPU_OPT_GET_FREQ_MULTIPLIER());
-	
+	float spamInterval = Vars::Misc::Automation::ChatSpam::Interval.Value;
+	if (spamInterval <= 0.2f)
+		spamInterval = 0.2f;
+
 	if (!m_tChatSpamTimer.Run(spamInterval))
 		return;
 
+	std::string chatLine;
 	const size_t lineCount = m_vChatSpamLines.size();
+
 	if (lineCount == 0)
 		return;
 
-	// Optimized line selection
-	std::string chatLine;
-	if (Vars::Misc::Automation::ChatSpam::Randomize.Value)
+	try
 	{
-		int randomIndex = SDK::RandomInt(0, static_cast<int>(lineCount) - 1);
-		chatLine = m_vChatSpamLines[randomIndex];
+		if (Vars::Misc::Automation::ChatSpam::Randomize.Value)
+		{
+			// Safer random index generation
+			int max = static_cast<int>(lineCount) - 1;
+			if (max < 0) max = 0;
+			int randomIndex = SDK::RandomInt(0, max);
+
+			// Double-check bounds for safety
+			if (randomIndex >= 0 && randomIndex < static_cast<int>(lineCount))
+				chatLine = m_vChatSpamLines[randomIndex];
+			else
+				chatLine = "[chtspm]";
+		}
+		else
+		{
+			if (m_iCurrentChatSpamIndex < 0 || m_iCurrentChatSpamIndex >= static_cast<int>(lineCount))
+				m_iCurrentChatSpamIndex = 0;
+
+			if (m_iCurrentChatSpamIndex >= 0 && m_iCurrentChatSpamIndex < static_cast<int>(lineCount))
+			{
+				chatLine = m_vChatSpamLines[m_iCurrentChatSpamIndex];
+				m_iCurrentChatSpamIndex = (m_iCurrentChatSpamIndex + 1) % static_cast<int>(lineCount);
+			}
+			else
+			{
+				chatLine = "[ChatSpam]";
+				m_iCurrentChatSpamIndex = 0;
+			}
+		}
+
+		// Limit message length to prevent buffer issues
+		if (chatLine.length() > 150)
+		{
+			chatLine = chatLine.substr(0, 150);
+		}
+
+		// Process text replacements
+		chatLine = ProcessTextReplacements(chatLine);
+
+		std::string chatCommand;
+		if (Vars::Misc::Automation::ChatSpam::TeamChat.Value)
+			chatCommand = "say_team \"" + chatLine + "\"";
+		else
+			chatCommand = "say \"" + chatLine + "\"";
+
+		I::EngineClient->ClientCmd_Unrestricted(chatCommand.c_str());
 	}
-	else
+	catch (...)
 	{
-		if (m_iCurrentChatSpamIndex >= static_cast<int>(lineCount))
-			m_iCurrentChatSpamIndex = 0;
-		chatLine = m_vChatSpamLines[m_iCurrentChatSpamIndex];
-		m_iCurrentChatSpamIndex = (m_iCurrentChatSpamIndex + 1) % static_cast<int>(lineCount);
+		// Silently fail if we encounter any exception during command execution
+		return;
 	}
-
-	// Optimize string operations with caching
-	if (chatLine.length() > 150)
-		chatLine.resize(150);
-
-	// Process text replacements only if enabled and performance allows
-	if (Vars::Misc::Automation::ChatSpam::TextReplace.Value && CPU_OPT_EXPENSIVE_FEATURE_CHECK())
-	{
-		auto& stringCache = CpuOptimization::g_OptimizationManager.GetStringCache();
-		chatLine = stringCache.GetCached(chatLine, [this, &chatLine]() {
-			return ProcessTextReplacements(chatLine);
-		});
-	}
-
-	// Build and send command efficiently
-	std::string chatCommand = Vars::Misc::Automation::ChatSpam::TeamChat.Value ? 
-		"say_team \"" + chatLine + "\"" : "say \"" + chatLine + "\"";
-	
-	I::EngineClient->ClientCmd_Unrestricted(chatCommand.c_str());
 }
 
 void CMisc::AutoReport()
 {
-	CPU_OPT_SKIP_IF_VERY_LOW_PERF(1); // Skip on low performance
-	
 	if (!Vars::Misc::Automation::AutoReport.Value)
 		return;
 
-	static FastTimer reportTimer{};
-	float reportInterval = 5.0f * CPU_OPT_GET_FREQ_MULTIPLIER();
-	if (!reportTimer.Run(reportInterval))
+	static Timer reportTimer{};
+	if (!reportTimer.Run(5.0f))
 		return;
 
 	static auto reportFunc = reinterpret_cast<void(*)(uint64_t, int)>(U::Memory.FindSignature("client.dll", "48 89 5C 24 ? 57 48 83 EC 60 48 8B D9 8B FA"));
-	if (!reportFunc || !I::EngineClient || !I::EngineClient->IsInGame() || !I::EngineClient->IsConnected())
+	if (!reportFunc)
+		return;
+
+	if (!I::EngineClient || !I::EngineClient->IsInGame() || !I::EngineClient->IsConnected())
 		return;
 
 	CTFPlayer* pLocal = H::Entities.GetLocal();
 	if (!pLocal)
 		return;
 
-	// Cache player validation results to reduce repeated checks
-	static std::unordered_set<int> reportedPlayers;
-	static FastTimer cacheResetTimer;
-	if (cacheResetTimer.Run(30.0f)) // Reset cache every 30 seconds
-		reportedPlayers.clear();
-
-	int localPlayerIdx = I::EngineClient->GetLocalPlayer();
-	int maxClients = I::EngineClient->GetMaxClients();
-	
-	// Limit processing per frame for performance
-	static int processIndex = 1;
-	int processed = 0;
-	const int maxProcessPerFrame = std::max(1, maxClients / 10); // Process 10% of players per frame
-
-	for (int i = processIndex; i <= maxClients && processed < maxProcessPerFrame; i++)
+	for (int i = 1; i <= I::EngineClient->GetMaxClients(); i++)
 	{
-		if (i == localPlayerIdx || reportedPlayers.count(i))
-		{
-			processed++;
+		if (i == I::EngineClient->GetLocalPlayer())
 			continue;
-		}
 
-		auto pPlayer = I::ClientEntityList->GetClientEntity(i);
-		if (!pPlayer)
-		{
-			processed++;
+		CTFPlayer* pPlayer = reinterpret_cast<CTFPlayer*>(I::ClientEntityList->GetClientEntity(i));
+		if (!pPlayer || !pPlayer->IsAlive())
 			continue;
-		}
 
 		PlayerInfo_t playerInfo{};
-		if (!I::EngineClient->GetPlayerInfo(i, &playerInfo) || playerInfo.fakeplayer)
-		{
-			processed++;
+		if (!I::EngineClient->GetPlayerInfo(i, &playerInfo))
 			continue;
-		}
 
-		// Quick friend/party/ignore check
-		if (H::Entities.IsFriend(i) || H::Entities.InParty(i) || F::PlayerUtils.IsIgnored(i) ||
+		if (playerInfo.fakeplayer)
+			continue;
+
+
+		if (H::Entities.IsFriend(i) ||
+			H::Entities.InParty(i) ||
+			F::PlayerUtils.IsIgnored(i) ||
 			F::PlayerUtils.HasTag(i, F::PlayerUtils.TagToIndex(FRIEND_IGNORE_TAG)) ||
 			F::PlayerUtils.HasTag(i, F::PlayerUtils.TagToIndex(BOT_IGNORE_TAG)))
-		{
-			processed++;
 			continue;
-		}
 
 		uint64_t steamID64 = ((uint64_t)1 << 56) | ((uint64_t)1 << 52) | ((uint64_t)1 << 32) | playerInfo.friendsID;
 		reportFunc(steamID64, 1);
-		reportedPlayers.insert(i);
-		
-		processed++;
 	}
-
-	// Wrap around for next frame
-	processIndex = (processIndex > maxClients) ? 1 : processIndex + 1;
 }
 
 
@@ -1470,7 +1464,7 @@ std::string CMisc::ProcessTextReplacements(std::string text)
 		{
 			uint32_t uFriendsID = F::PlayerUtils.GetFriendsID(playerIdx);
 
-			
+
 			bool isProtected = false;
 			if (uFriendsID > 0)
 			{
@@ -1483,7 +1477,7 @@ std::string CMisc::ProcessTextReplacements(std::string text)
 			}
 			else
 			{
-				
+
 				isProtected = F::PlayerUtils.HasTag(playerIdx, F::PlayerUtils.TagToIndex(IGNORED_TAG)) ||
 					F::PlayerUtils.HasTag(playerIdx, F::PlayerUtils.TagToIndex(FRIEND_TAG)) ||
 					F::PlayerUtils.HasTag(playerIdx, F::PlayerUtils.TagToIndex(FRIEND_IGNORE_TAG)) ||
@@ -1518,7 +1512,7 @@ std::string CMisc::ProcessTextReplacements(std::string text)
 		{
 			uint32_t uFriendsID = F::PlayerUtils.GetFriendsID(playerIdx);
 
-			
+
 			bool isProtected = false;
 			if (uFriendsID > 0)
 			{
@@ -1565,7 +1559,7 @@ std::string CMisc::ProcessTextReplacements(std::string text)
 		{
 			uint32_t uFriendsID = F::PlayerUtils.GetFriendsID(playerIdx);
 
-			
+
 			bool isProtected = false;
 			if (uFriendsID > 0)
 			{
@@ -1690,7 +1684,6 @@ std::string CMisc::ProcessTextReplacements(std::string text)
 	return text;
 }
 
-
 void CMisc::KillSay(int victim)
 {
 	if (!Vars::Misc::Automation::ChatSpam::KillSay.Value || !I::EngineClient)
@@ -1748,9 +1741,6 @@ void CMisc::KillSay(int victim)
 		I::EngineClient->ClientCmd_Unrestricted(chatCommand.c_str());
 	}
 }
-
-
-
 
 void CMisc::AutoReply(int speaker, const char* text)
 {
@@ -2210,7 +2200,7 @@ void CMisc::LoadVotekickConfig()
 		if (!hModule)
 		{
 			SDK::Output("VotekickDebug", "Failed to get tf_win64.exe module handle", {}, true, true);
-			hModule = GetModuleHandleA(nullptr); // Попробуем текущий модуль
+			hModule = GetModuleHandleA(nullptr);
 		}
 
 		if (!GetModuleFileNameA(hModule, gamePath, MAX_PATH))

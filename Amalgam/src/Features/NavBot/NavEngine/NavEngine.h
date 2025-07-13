@@ -2,13 +2,7 @@
 #include "FileReader/CNavFile.h"
 #include "MicroPather/micropather.h"
 #include <boost/container_hash/hash.hpp>
-
-#define PLAYER_WIDTH		49.0f
-#define HALF_PLAYER_WIDTH	PLAYER_WIDTH / 2.0f
-#define PLAYER_HEIGHT		83.0f
-#define PLAYER_JUMP_HEIGHT	72.0f
-
-#define TICKCOUNT_TIMESTAMP(seconds) (I::GlobalVars->tickcount + static_cast<int>((seconds) / I::GlobalVars->interval_per_tick))
+#include "NavCommon.h"
 
 class NavPoints
 {
@@ -19,67 +13,6 @@ public:
     Vector center_next;
     Vector next;
     NavPoints(Vector A, Vector B, Vector C, Vector D) : current(A), center(B), center_next(C), next(D){};
-};
-
-enum Priority_list
-{
-	patrol = 5,
-	lowprio_health,
-	staynear,
-	run_reload,
-	run_safe_reload,
-	snipe_sentry,
-	capture,
-	ammo,
-	prio_melee,
-	engineer,
-	health,
-	escape_spawn,
-	danger
-};
-
-// Basic Blacklist reasons, you can add your own externally and use them
-enum BlacklistReason_enum
-{
-	BR_SENTRY,
-	BR_SENTRY_MEDIUM,
-	BR_SENTRY_LOW,
-	BR_STICKY,
-	BR_ENEMY_NORMAL,
-	BR_ENEMY_DORMANT,
-	BR_ENEMY_INVULN,
-	BR_BAD_BUILDING_SPOT,
-	// Always last
-	BLACKLIST_LENGTH
-};
-
-class BlacklistReason
-{
-public:
-	BlacklistReason_enum value;
-	int time = 0;
-	void operator=(BlacklistReason_enum const& reason)
-	{
-		this->value = reason;
-	}
-
-	BlacklistReason()
-	{
-		this->value = (BlacklistReason_enum)-1;
-		this->time = 0;
-	}
-
-	explicit BlacklistReason(BlacklistReason_enum reason)
-	{
-		this->value = reason;
-		this->time = 0;
-	}
-
-	BlacklistReason(BlacklistReason_enum reason, int time)
-	{
-		this->value = reason;
-		this->time = time;
-	}
 };
 
 class CNavParser
@@ -247,6 +180,8 @@ public:
 	// Clear by category
 	void clearFreeBlacklist(BlacklistReason reason) { std::erase_if(map->free_blacklist, [&reason](const auto& entry) { return entry.second.value == reason.value; }); }
 
+	bool isInactive(float flTime);
+
 	CNavParser::Crumb current_crumb;
 	void followCrumbs(CTFPlayer* pLocal, CUserCmd* pCmd);
 	bool findNearestNavNode(CTFPlayer* pLocal);
@@ -256,7 +191,6 @@ public:
 	void updateStuckTime();
 	void Run(CUserCmd* pCmd);
 	void Reset(bool bForced = false);
-	void Render();
 };
 
 ADD_FEATURE(CNavEngine, NavEngine);

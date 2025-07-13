@@ -10,7 +10,7 @@
 #include "../Features/Spectate/Spectate.h"
 #include "../Features/NavBot/NavEngine/Controllers/Controller.h"
 #include "../Features/NavBot/NavEngine/NavEngine.h"
-#include "../Features/NavBot/NavBot.h"
+#include "../Features/NavBot/NBheader.h"
 
 MAKE_HOOK(CViewRender_LevelInit, U::Memory.GetVirtual(I::ViewRender, 1), void,
 	void* rcx)

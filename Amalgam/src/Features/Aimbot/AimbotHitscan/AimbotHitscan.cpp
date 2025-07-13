@@ -7,7 +7,8 @@
 #include "../../Ticks/Ticks.h"
 #include "../../Visuals/Visuals.h"
 #include "../../Simulation/MovementSimulation/MovementSimulation.h"
-#include "../../NavBot/NavBot.h"
+#include "../../NavBot/NBheader.h"
+#include "../../NavBot/NavEngine/FileReader/nav.h"
 #include "../../../Utils/Math/SIMDMath.h"
 #include <unordered_set>
 #include <algorithm>
@@ -359,6 +360,87 @@ inline bool CAimbotHitscan::QuickVisibilityCheck(const Vec3& from, const Vec3& t
 	
 	SDK::Trace(from, to, MASK_SHOT | CONTENTS_GRATE, &filter, &trace);
 	return (trace.m_pEnt && trace.m_pEnt == pTarget);
+}
+
+bool CAimbotHitscan::HasEnemiesInRange(CTFPlayer* pLocal, float flRange) const
+{
+	if (!pLocal || !I::EngineClient || !I::EngineClient->IsInGame())
+		return false;
+	
+	Vec3 vLocalPos = pLocal->GetShootPos();
+	float flRangeSqr = flRange * flRange;
+	
+	for (auto pEntity : H::Entities.GetGroup(EGroupType::PLAYERS_ENEMIES))
+	{
+		if (!pEntity || pEntity->IsDormant() || pEntity->entindex() <= 0)
+			continue;
+		
+		if (F::AimbotGlobal.ShouldIgnore(pEntity, pLocal, nullptr))
+			continue;
+		
+		float flDistSqr = vLocalPos.DistToSqr(pEntity->GetCenter());
+		if (flDistSqr <= flRangeSqr)
+			return true;
+	}
+	
+	for (auto pEntity : H::Entities.GetGroup(EGroupType::BUILDINGS_ENEMIES))
+	{
+		if (!pEntity || pEntity->IsDormant() || pEntity->entindex() <= 0)
+			continue;
+		
+		if (F::AimbotGlobal.ShouldIgnore(pEntity, pLocal, nullptr))
+			continue;
+		
+		float flDistSqr = vLocalPos.DistToSqr(pEntity->GetCenter());
+		if (flDistSqr <= flRangeSqr)
+			return true;
+	}
+	
+	for (auto pEntity : H::Entities.GetGroup(EGroupType::WORLD_NPC))
+	{
+		if (!pEntity || pEntity->IsDormant() || pEntity->entindex() <= 0)
+			continue;
+		
+		if (F::AimbotGlobal.ShouldIgnore(pEntity, pLocal, nullptr))
+			continue;
+		
+		float flDistSqr = vLocalPos.DistToSqr(pEntity->GetCenter());
+		if (flDistSqr <= flRangeSqr)
+			return true;
+	}
+	
+	return false;
+}
+
+bool CAimbotHitscan::NavBotNeedsJump(CTFPlayer* pLocal) const
+{
+	if (!pLocal || !F::NavEngine.isPathing())
+		return false;
+	
+	auto crumbs = F::NavEngine.getCrumbs();
+	if (!crumbs || crumbs->empty())
+		return false;
+	
+	Vec3 vLocalPos = pLocal->GetAbsOrigin();
+	Vec3 vTargetPos = (*crumbs)[0].vec;
+	
+	float flHeightDiff = vTargetPos.z - vLocalPos.z;
+	
+	const float flJumpThreshold = 36.0f;
+	if (flHeightDiff > flJumpThreshold && flHeightDiff <= PLAYER_JUMP_HEIGHT)
+		return true;
+	
+	if (F::NavEngine.isInactive(Vars::NavEng::NavEngine::StuckTime.Value / 2))
+	{
+		if (F::NavEngine.map)
+		{
+			auto pLocalNav = F::NavEngine.map->findClosestNavSquare(vLocalPos);
+			if (pLocalNav && !(pLocalNav->m_attributeFlags & (NAV_MESH_NO_JUMP | NAV_MESH_STAIRS)))
+				return true;
+		}
+	}
+	
+	return false;
 }
 
 // Batch distance calculation using SIMD
@@ -1340,7 +1422,35 @@ void CAimbotHitscan::Run(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUserCmd* pC
 	case TF_WEAPON_SNIPERRIFLE_DECAP:
 	{
 		bool bScoped = pLocal->InCond(TF_COND_ZOOMED);
-		if (Vars::Aimbot::Hitscan::Modifiers.Value & Vars::Aimbot::Hitscan::ModifiersEnum::AutoScope && !bScoped)
+		bool bShouldScope = false;
+		bool bShouldUnscope = false;
+		
+		if (Vars::Aimbot::Hitscan::Modifiers.Value & Vars::Aimbot::Hitscan::ModifiersEnum::DistanceAutoscope)
+		{
+			bool bHasEnemiesInRange = HasEnemiesInRange(pLocal, Vars::Aimbot::Hitscan::DistanceAutoscopeRange.Value);
+			bool bNavBotNeedsJump = NavBotNeedsJump(pLocal);
+			
+			if (bHasEnemiesInRange && !bNavBotNeedsJump && !bScoped)
+			{
+				bShouldScope = true;
+			}
+			else if ((!bHasEnemiesInRange || bNavBotNeedsJump) && bScoped)
+			{
+				bShouldUnscope = true;
+			}
+		}
+		// Original autoscope behavior
+		else if (Vars::Aimbot::Hitscan::Modifiers.Value & Vars::Aimbot::Hitscan::ModifiersEnum::AutoScope && !bScoped)
+		{
+			bShouldScope = true;
+		}
+		
+		if (bShouldScope)
+		{
+			pCmd->buttons |= IN_ATTACK2;
+			return;
+		}
+		else if (bShouldUnscope)
 		{
 			pCmd->buttons |= IN_ATTACK2;
 			return;

@@ -13,7 +13,7 @@
 #include "../Features/Visuals/ESP/ESP.h"
 #include "../Features/Visuals/CameraWindow/CameraWindow.h"
 #include "../Features/Visuals/Notifications/Notifications.h"
-#include "../Features/NavBot/NavBot.h"
+#include "../Features/NavBot/NBheader.h"
 #include "../Features/Aimbot/AutoHeal/AutoHeal.h"
 
 MAKE_HOOK(IEngineVGui_Paint, U::Memory.GetVirtual(I::EngineVGui, 14), void,
@@ -54,7 +54,6 @@ MAKE_HOOK(IEngineVGui_Paint, U::Memory.GetVirtual(I::EngineVGui, 14), void,
 			F::Backtrack.Draw(pLocal);
 			F::SpectatorList.Draw(pLocal);
 			F::CritHack.Draw(pLocal);
-			F::NavBot.Draw(pLocal);
 			F::Ticks.Draw(pLocal);
 			F::Visuals.DrawDebugInfo(pLocal);
 		}
