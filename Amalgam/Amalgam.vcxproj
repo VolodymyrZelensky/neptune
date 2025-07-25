@@ -1325,7 +1325,6 @@
     <ClCompile Include="src\Utils\Timer\Timer.cpp" />
     <ClCompile Include="src\Utils\Memory\MemoryPool.cpp" />
     <ClCompile Include="src\Utils\Optimization\CpuOptimization.cpp" />
-    <ClCompile Include="src\Hooks\Host_Error.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\freetype\config\ftconfig.h" />
