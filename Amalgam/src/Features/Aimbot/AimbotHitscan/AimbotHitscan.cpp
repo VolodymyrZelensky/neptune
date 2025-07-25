@@ -1587,12 +1587,12 @@ void CAimbotHitscan::Run(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUserCmd* pC
 			bShouldScope = true;
 		}
 		
-		if (bShouldScope)
+		if (bShouldScope && !(G::LastUserCmd->buttons & IN_ATTACK2))
 		{
 			pCmd->buttons |= IN_ATTACK2;
 			return;
 		}
-		else if (bShouldUnscope)
+		else if (bShouldUnscope && !(G::LastUserCmd->buttons & IN_ATTACK2))
 		{
 			pCmd->buttons |= IN_ATTACK2;
 			return;
