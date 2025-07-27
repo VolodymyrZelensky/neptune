@@ -775,21 +775,24 @@ namespace F::NamedPipe
         srand(static_cast<unsigned int>(time(nullptr)));
         
         DWORD lastBroadcastTime = 0;
-        const DWORD BROADCAST_INTERVAL_MS = 5000;
+        const DWORD BROADCAST_INTERVAL_MS = 15000;
         
-        constexpr DWORD HEARTBEAT_MIN_MS = 2000;
-        constexpr DWORD HEARTBEAT_MAX_MS = 4000;
+        constexpr DWORD HEARTBEAT_MIN_MS = 4000;
+        constexpr DWORD HEARTBEAT_MAX_MS = 8000;
         auto scheduleNextHeartbeat = [&]() -> DWORD {
             return GetTickCount() + HEARTBEAT_MIN_MS + rand() % (HEARTBEAT_MAX_MS - HEARTBEAT_MIN_MS + 1);
         };
         DWORD nextHeartbeatTime = scheduleNextHeartbeat();
         
         DWORD lastPlayerUpdateTime = 0;
-        const DWORD PLAYER_UPDATE_INTERVAL_MS = 5500;
+        const DWORD PLAYER_UPDATE_INTERVAL_MS = 11000;
         
         DWORD lastHealthUpdateTime = 0;
-        const DWORD HEALTH_UPDATE_INTERVAL_MS = 5000;
+        const DWORD HEALTH_UPDATE_INTERVAL_MS = 15000;
         int lastHealthSent = -1;
+        
+        char buffer[4096] = {0};
+        DWORD bytesRead = 0;
         
         while (!stoken.stop_requested())
         {
@@ -880,14 +883,16 @@ namespace F::NamedPipe
             if (hPipe.valid())
             {
 
-                DWORD bytesAvail = 0;
-                if (!PeekNamedPipe(hPipe, NULL, 0, NULL, &bytesAvail, NULL)) {
-                    DWORD error = GetLastError();
-                    if (error == ERROR_BROKEN_PIPE || error == ERROR_PIPE_NOT_CONNECTED || error == ERROR_NO_DATA) {
-                        Log("Pipe disconnected: " + std::to_string(error) + " - " + GetErrorMessage(error));
-                        hPipe.reset();
-                        continue;
+                if (!readPending)
+                {
+                    if (!hReadEvent.valid())
+                    {
+                        hReadEvent.reset(CreateEvent(NULL, TRUE, FALSE, NULL));
+                        ovRead = {};
+                        ovRead.hEvent = hReadEvent;
                     }
+                    DWORD dummy = 0;
+                    readPending = ReadFile(hPipe, buffer, sizeof(buffer) - 1, &dummy, &ovRead) == FALSE && GetLastError() == ERROR_IO_PENDING;
                 }
                 
 
@@ -933,20 +938,16 @@ namespace F::NamedPipe
                 DWORD bytesRead = 0;
                 
 
-                if(!hReadEvent.valid())
-                {
-                    hReadEvent.reset(CreateEvent(NULL, TRUE, FALSE, NULL));
-                    ovRead = {};
-                    ovRead.hEvent = hReadEvent;
-                }
-
                 if(hReadEvent.valid())
                 {
-                    if(!readPending && bytesAvail>0)
+                    if(!readPending)
                     {
-                        readPending = ReadFile(hPipe, buffer, sizeof(buffer)-1, &bytesRead, &ovRead)==FALSE && GetLastError()==ERROR_IO_PENDING;
+                        DWORD dummy=0;
+                        readPending = ReadFile(hPipe, buffer, sizeof(buffer)-1, &dummy, &ovRead)==FALSE && GetLastError()==ERROR_IO_PENDING;
                     }
-                    DWORD waitRes = WaitForSingleObject(hReadEvent, 0);
+                    // Wait up to 200 ms for the read to complete. This greatly lowers CPU usage compared to the
+                     // previous zero-timeout busy polling.
+                     DWORD waitRes = WaitForSingleObject(hReadEvent, 200);
                     if(waitRes==WAIT_OBJECT_0)
                     {
                         if(GetOverlappedResult(hPipe,&ovRead,&bytesRead,FALSE))
@@ -984,12 +985,14 @@ namespace F::NamedPipe
             // a new message arrives or timeout expires (different timeout when pipe connected vs not)
             if(!hPipe.valid())
             {
-                messageQueue.waitForMessage(100);
+                messageQueue.waitForMessage(1000); // Increased timeout for lower CPU when disconnected
             }
             else
             {
-                messageQueue.waitForMessage(500);
+                messageQueue.waitForMessage(500); // Keep as-is for responsiveness when connected
             }
+            // Yield CPU a bit to further reduce usage
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
 
 

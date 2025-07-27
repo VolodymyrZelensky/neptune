@@ -146,7 +146,6 @@ namespace HitSounds
             std::string statusCmd = "status " + aliasName + " mode";
             char returnString[128];
             while (true) {
-                Sleep(50);
                 mciSendStringA(statusCmd.c_str(), returnString, sizeof(returnString), NULL);
                 if (strcmp(returnString, "stopped") == 0) {
                     break;

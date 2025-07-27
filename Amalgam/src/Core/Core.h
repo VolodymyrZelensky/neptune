@@ -9,7 +9,6 @@ class CCore
 public:
 	void Load();
 	void Loop();
-	void Unload();
 
 	const char* SearchForDLL(const char* pszDLLSearch);
 	void AppendFailText(const char* sMessage);

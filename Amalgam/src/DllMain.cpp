@@ -10,7 +10,6 @@ DWORD WINAPI MainThread(LPVOID lpParam)
     U::Core.Loop();
     
     CrashLog::Unload();
-    U::Core.Unload();
 
     FreeLibraryAndExitThread(static_cast<HMODULE>(lpParam), EXIT_SUCCESS);
 }
