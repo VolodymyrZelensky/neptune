@@ -2,13 +2,15 @@
 
 #include "../../Features/Configs/Configs.h"
 
-#include <ImageHlp.h>
+// #include <ImageHlp.h>  // removed to avoid redefinition conflicts with DbgHelp.h
 #include <Psapi.h>
+#include <DbgHelp.h>
 #include <deque>
 #include <sstream>
 #include <fstream>
 #include <format>
 #pragma comment(lib, "imagehlp.lib")
+#pragma comment(lib, "Dbghelp.lib")
 
 struct Frame
 {
@@ -28,7 +30,10 @@ static std::deque<Frame> StackTrace(PCONTEXT pContext)
 	if (!SymInitialize(hProcess, nullptr, TRUE))
 		return {};
 	
-	SymSetOptions(SYMOPT_LOAD_LINES);
+	SymSetOptions(SYMOPT_DEFERRED_LOADS | SYMOPT_LOAD_LINES | SYMOPT_UNDNAME | SYMOPT_DEBUG);
+
+	// Explicitly point dbghelp to the folder containing the matching PDB
+	SymSetSearchPath(hProcess, "C:\\Users\\sex\\Desktop\\neptune-botpanel\\files");
 
 	STACKFRAME64 tStackFrame = {};
 	tStackFrame.AddrPC.Offset = pContext->Rip;

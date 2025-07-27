@@ -499,6 +499,9 @@ void CNavBot::UpdateEnemyBlacklist(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, in
 
 bool CNavBot::IsAreaValidForStayNear(Vector vEntOrigin, CNavArea* pArea, bool bFixLocalZ)
 {
+	if (!F::NavEngine.isReady() || !F::NavEngine.IsNavMeshLoaded())
+		return false;
+
 	if (bFixLocalZ)
 		vEntOrigin.z += PLAYER_JUMP_HEIGHT;
 	auto vAreaOrigin = pArea->m_center;
@@ -527,6 +530,9 @@ bool CNavBot::IsAreaValidForStayNear(Vector vEntOrigin, CNavArea* pArea, bool bF
 
 bool CNavBot::StayNearTarget(int iEntIndex)
 {
+	if (!F::NavEngine.isReady() || !F::NavEngine.IsNavMeshLoaded())
+		return false;
+
 	auto pEntity = I::ClientEntityList->GetClientEntity(iEntIndex);
 	if (!pEntity)
 		return false;
@@ -566,7 +572,21 @@ bool CNavBot::StayNearTarget(int iEntIndex)
 		{
 			m_iStayNearTargetIdx = pEntity->entindex();
 			if (auto pPlayerResource = H::Entities.GetPR())
-				m_sFollowTargetName = SDK::ConvertUtf8ToWide(pPlayerResource->m_pszPlayerName(pEntity->entindex()));
+			{
+				const char* pszName = pPlayerResource->m_pszPlayerName(pEntity->entindex());
+				// Validate the pointer and make sure it looks like a sane, null-terminated UTF-8 string (max 128 bytes).
+				if (pszName && *pszName)
+				{
+					// Clamp length to avoid walking off into unmapped memory.
+					size_t len = strnlen_s(pszName, 128);
+					std::string safeName(pszName, len);
+					m_sFollowTargetName = SDK::ConvertUtf8ToWide(safeName);
+				}
+				else
+				{
+					m_sFollowTargetName.clear();
+				}
+			}
 			return true;
 		}
 	}
