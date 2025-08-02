@@ -23,6 +23,16 @@
 
 namespace F::NamedPipe
 {
+    static inline std::string Trim(const std::string& str)
+    {
+        const char* whitespace = " \t\n\r\f\v";
+        const size_t begin = str.find_first_not_of(whitespace);
+        if (begin == std::string::npos)
+            return "";
+        const size_t end = str.find_last_not_of(whitespace);
+        return str.substr(begin, end - begin + 1);
+    }
+
     // RAII wrapper for Windows HANDLE
     class AutoHandle {
         HANDLE h{ INVALID_HANDLE_VALUE };
@@ -80,7 +90,7 @@ namespace F::NamedPipe
     }
     
     const int MAX_RECONNECT_ATTEMPTS = 10;
-    const int BASE_RECONNECT_DELAY_MS = 500;
+    const int BASE_RECONNECT_DELAY_MS = 5000;
     const int MAX_RECONNECT_DELAY_MS = 10000;
     int currentReconnectAttempts = 0;
     DWORD lastConnectAttemptTime = 0;
@@ -505,6 +515,8 @@ namespace F::NamedPipe
             std::getline(iss, botNumber, ':');
             std::getline(iss, messageType, ':');
             std::getline(iss, friendsIDstr);
+            messageType = Trim(messageType);
+            friendsIDstr = Trim(friendsIDstr);
             
             Log("Processing LocalBot message - botNumber: " + botNumber + ", type: " + messageType + ", ID: " + friendsIDstr);
             
@@ -775,20 +787,20 @@ namespace F::NamedPipe
         srand(static_cast<unsigned int>(time(nullptr)));
         
         DWORD lastBroadcastTime = 0;
-        const DWORD BROADCAST_INTERVAL_MS = 15000;
+        const DWORD BROADCAST_INTERVAL_MS = 17000;
         
-        constexpr DWORD HEARTBEAT_MIN_MS = 4000;
-        constexpr DWORD HEARTBEAT_MAX_MS = 8000;
+        constexpr DWORD HEARTBEAT_MIN_MS = 4800;
+        constexpr DWORD HEARTBEAT_MAX_MS = 8800;
         auto scheduleNextHeartbeat = [&]() -> DWORD {
             return GetTickCount() + HEARTBEAT_MIN_MS + rand() % (HEARTBEAT_MAX_MS - HEARTBEAT_MIN_MS + 1);
         };
         DWORD nextHeartbeatTime = scheduleNextHeartbeat();
         
         DWORD lastPlayerUpdateTime = 0;
-        const DWORD PLAYER_UPDATE_INTERVAL_MS = 11000;
+        const DWORD PLAYER_UPDATE_INTERVAL_MS = 19000;
         
         DWORD lastHealthUpdateTime = 0;
-        const DWORD HEALTH_UPDATE_INTERVAL_MS = 15000;
+        const DWORD HEALTH_UPDATE_INTERVAL_MS = 19000;
         int lastHealthSent = -1;
         
         char buffer[4096] = {0};
@@ -970,6 +982,8 @@ namespace F::NamedPipe
                             std::getline(iss, botNumber, ':');
                             std::getline(iss, messageType, ':');
                             std::getline(iss, content);
+                            messageType = Trim(messageType);
+                            content = Trim(content);
                             if(messageType=="Command")
                                 QueueIncomingMessage(messageType,content);
                             else if(messageType=="LocalBot")

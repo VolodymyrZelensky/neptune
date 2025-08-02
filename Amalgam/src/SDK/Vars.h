@@ -1107,6 +1107,7 @@ namespace Vars
 			CVar(AutoVoteMapOption, "", 2, SLIDER_CLAMP, 0, 2, 1, "%i");
 			CVar(ForceClass, "Autojoin class", 0);
 			CVar(RandomClassSwitch, "Random class switch", false);
+			CVar(MotdBot, "MOTD bot", false);
 			CVar(RandomClassInterval, "Random class switch interval", 5, SLIDER_MIN, 1, 15, 1, "%i min");
 			CVarEnum(ExcludeProjectileClasses, "Exclude projectile classes", 0b0000, DROPDOWN_MULTI, "None",
 				VA_LIST("Soldier", "Demoman", "Pyro", "Medic", "Scout", "Heavy", "Engineer", "Sniper", "Spy"),
@@ -1228,6 +1229,7 @@ namespace Vars
 			CVar(QueueDelay, "Queue delay", 5, SLIDER_MIN, 0, 10, 1, "%im");
 			CVar(RQif, "Requeue if...", false); // Dropdown?
 			CVar(RQplt, "Players LT", 12, SLIDER_MIN, 0, 100, 1, "%i");
+			CVar(RQpgt, "Players GT", 0, SLIDER_MIN, 0, 100, 1, "%i");
 			CVar(RQkick, "Kicked", false);
 			CVar(RQLTM, "dont RQLTM", false);
 			CVar(RQIgnoreFriends, "Ignore Friends", false);

@@ -1905,6 +1905,7 @@ void CMenu::MenuNavEng(int iTab)
 					PushTransparent(!Vars::Misc::Queueing::RQif);
 					{
 						FSlider(Vars::Misc::Queueing::RQplt);
+						FSlider(Vars::Misc::Queueing::RQpgt);
 						FToggle(Vars::Misc::Queueing::RQkick, FToggleEnum::Left);
 						FToggle(Vars::Misc::Queueing::RQLTM, FToggleEnum::Right);
 						FToggle(Vars::Misc::Queueing::RQIgnoreFriends, FToggleEnum::Left);

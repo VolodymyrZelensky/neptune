@@ -72,11 +72,18 @@ static std::vector<std::function<void()>> vDynamic = {
     [&]()
     {
         auto pResource = H::Entities.GetPR();
-        if (!pResource)
+        if (!pResource || !I::EngineClient)
+            return;
+
+        int localPlayer = I::EngineClient->GetLocalPlayer();
+        if (localPlayer <= 0)
             return;
 
         std::string sFind = "\\{self}";
-        std::string sReplace = pResource->m_pszPlayerName(I::EngineClient->GetLocalPlayer());
+        const char* playerName = pResource->m_pszPlayerName(localPlayer);
+        if (!playerName)
+            return;
+        std::string sReplace = playerName;
 
         size_t iPos = 0;
         while (true)
@@ -92,12 +99,16 @@ static std::vector<std::function<void()>> vDynamic = {
     [&]()
     {
         auto pResource = H::Entities.GetPR();
-        if (!pResource)
+        if (!pResource || !I::EngineClient)
+            return;
+
+        int localPlayer = I::EngineClient->GetLocalPlayer();
+        if (localPlayer <= 0)
             return;
 
         std::string sFind = "\\{team}";
         std::string sReplace = PRE_STR"\x7""cccccc";
-        switch (pResource->m_iTeam(I::EngineClient->GetLocalPlayer()))
+        switch (pResource->m_iTeam(localPlayer))
         {
         case TF_TEAM_BLUE: sReplace = PRE_STR"\x7""99ccff"; break;
         case TF_TEAM_RED: sReplace = PRE_STR"\x7""ff4040"; break;
@@ -250,7 +261,14 @@ MAKE_HOOK(Cbuf_ExecuteCommand, S::Cbuf_ExecuteCommand(), void,
 				}
 			}
 			for (auto& fFunction : vDynamic)
+        {
+            try {
                 fFunction();
+            }
+            catch (...) {
+                // Silently handle lambda execution errors to prevent crashes
+            }
+        }
 
 			sCmdString = std::format("{} {}", sCommand, sCmdString).substr(0, COMMAND_MAX_LENGTH - 1);
 			strncpy_s(args.m_pArgSBuffer, sCmdString.c_str(), COMMAND_MAX_LENGTH);

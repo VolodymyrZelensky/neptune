@@ -15,14 +15,15 @@
 
 bool IsWeaponValidForDT(CTFWeaponBase* pWeapon)
 {
-	if (!pWeapon)
-		return false;
+	// if (!pWeapon)
+	// 	return false;
 
-	auto iWepID = pWeapon->GetWeaponID();
-	if (iWepID == TF_WEAPON_SNIPERRIFLE || iWepID == TF_WEAPON_SNIPERRIFLE_CLASSIC || iWepID == TF_WEAPON_SNIPERRIFLE_DECAP)
-		return false;
+	// auto iWepID = pWeapon->GetWeaponID();
+	// if (iWepID == TF_WEAPON_SNIPERRIFLE || iWepID == TF_WEAPON_SNIPERRIFLE_CLASSIC || iWepID == TF_WEAPON_SNIPERRIFLE_DECAP)
+	// 	return false;
 
-	return SDK::WeaponDoesNotUseAmmo(pWeapon, false);
+	// return SDK::WeaponDoesNotUseAmmo(pWeapon, false);
+	return false;
 }
 
 void CNavBot::UpdateClassConfig(CTFPlayer* pLocal, CTFWeaponBase* pWeapon)
@@ -70,23 +71,24 @@ void CNavBot::HandleMinigunSpinup(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUs
 
 void CNavBot::HandleDoubletapRecharge(CTFWeaponBase* pWeapon)
 {
-	static Timer tDoubletapRecharge{};
+	// static Timer tDoubletapRecharge{};
 	
-	if (!Vars::NavEng::NavBot::RechargeDT.Value || !IsWeaponValidForDT(pWeapon))
-		return;
+	// if (!Vars::NavEng::NavBot::RechargeDT.Value || !IsWeaponValidForDT(pWeapon))
+	// 	return;
 
-	if (!F::Ticks.m_bRechargeQueue &&
-		(Vars::NavEng::NavBot::RechargeDT.Value != Vars::NavEng::NavBot::RechargeDTEnum::WaitForFL || !Vars::Fakelag::Fakelag.Value || !F::FakeLag.m_iGoal) &&
-		G::Attacking != 1 &&
-		(F::Ticks.m_iShiftedTicks < F::Ticks.m_iShiftedGoal) && 
-		tDoubletapRecharge.Check(Vars::NavEng::NavBot::RechargeDTDelay.Value))
-	{
-		F::Ticks.m_bRechargeQueue = true;
-	}
-	else if (F::Ticks.m_iShiftedTicks >= F::Ticks.m_iShiftedGoal)
-	{
-		tDoubletapRecharge.Update();
-	}
+	// if (!F::Ticks.m_bRechargeQueue &&
+	// 	(Vars::NavEng::NavBot::RechargeDT.Value != Vars::NavEng::NavBot::RechargeDTEnum::WaitForFL || !Vars::Fakelag::Fakelag.Value || !F::FakeLag.m_iGoal) &&
+	// 	G::Attacking != 1 &&
+	// 	(F::Ticks.m_iShiftedTicks < F::Ticks.m_iShiftedGoal) && 
+	// 	tDoubletapRecharge.Check(Vars::NavEng::NavBot::RechargeDTDelay.Value))
+	// {
+	// 	F::Ticks.m_bRechargeQueue = true;
+	// }
+	// else if (F::Ticks.m_iShiftedTicks >= F::Ticks.m_iShiftedGoal)
+	// {
+	// 	tDoubletapRecharge.Update();
+	// }
+	return;
 }
 
 void CNavBot::UpdateSlot(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, ClosestEnemy_t tClosestEnemy)

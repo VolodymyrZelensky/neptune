@@ -1237,6 +1237,8 @@ std::optional<Vector> CNavBot::GetCtfGoal(CTFPlayer* pLocal, int iOurTeam, int i
 
 std::optional<Vector> CNavBot::GetPayloadGoal(const Vector vLocalOrigin, int iOurTeam)
 {
+	if (iOurTeam < TF_TEAM_RED || iOurTeam > TF_TEAM_BLUE)
+		return std::nullopt;
 	auto vPosition = F::PLController.GetClosestPayload(vLocalOrigin, iOurTeam);
 	if (!vPosition)
 		return std::nullopt;
@@ -1522,6 +1524,10 @@ std::optional<Vector> CNavBot::GetDoomsdayGoal(CTFPlayer* pLocal, int iOurTeam, 
 
 bool CNavBot::CaptureObjectives(CTFPlayer* pLocal, CTFWeaponBase* pWeapon)
 {
+	// Null pointer checks to prevent crashes
+	if (!pLocal || !pWeapon)
+		return false;
+
 	static Timer tCaptureTimer;
 	static Vector vPreviousTarget;
 	static int iPreviousStatus = -1;
@@ -1630,7 +1636,10 @@ bool CNavBot::CaptureObjectives(CTFPlayer* pLocal, CTFWeaponBase* pWeapon)
 	int iOurTeam = pLocal->m_iTeamNum();
 	int iEnemyTeam = iOurTeam == TF_TEAM_BLUE ? TF_TEAM_RED : TF_TEAM_BLUE;
 
-	m_bOverwriteCapture = false;
+	// Reset overwrite flag only when we are NOT on a control point. For control points we
+	// want the bot to remain stationary while capping, so preserve the flag.
+	if (F::GameObjectiveController.m_eGameMode != TF_GAMETYPE_CP)
+		m_bOverwriteCapture = false;
 
 	const auto vLocalOrigin = pLocal->GetAbsOrigin();
 
@@ -2329,6 +2338,12 @@ bool CNavBot::EscapeSpawn(CTFPlayer* pLocal)
 
 void CNavBot::Run(CTFPlayer* pLocal, CTFWeaponBase* pWeapon, CUserCmd* pCmd)
 {
+	if (!pLocal || !pWeapon || !pCmd)
+	{
+		m_iStayNearTargetIdx = -1;
+		return;
+	}
+
 	if (!Vars::NavEng::NavBot::Enabled.Value || !Vars::NavEng::NavEngine::Enabled.Value || !F::NavEngine.isReady())
 	{
 		m_iStayNearTargetIdx = -1;

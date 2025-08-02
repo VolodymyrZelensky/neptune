@@ -71,7 +71,9 @@ void CAutoQueue::Run()
 				}
 			}
 			
-			if (nPlayerCount < Vars::Misc::Queueing::RQplt.Value)
+			int nPlayersLT = Vars::Misc::Queueing::RQplt.Value;
+			int nPlayersGT = Vars::Misc::Queueing::RQpgt.Value;
+			if ((nPlayersLT > 0 && nPlayerCount < nPlayersLT) || (nPlayersGT > 0 && nPlayerCount > nPlayersGT))
 			{
 				I::TFGCClientSystem->AbandonCurrentMatch();
 				bWasInGame = false;

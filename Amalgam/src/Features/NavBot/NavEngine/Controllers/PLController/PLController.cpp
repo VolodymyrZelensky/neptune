@@ -1,4 +1,6 @@
 #include "PLController.h"
+#include <algorithm>
+#include <Windows.h> 
 
 void CPLController::Init()
 {
@@ -41,13 +43,22 @@ std::optional<Vector> CPLController::GetClosestPayload(Vector vPos, int iTeam)
 	float flBestDist = FLT_MAX;
 	std::optional<Vector> vBestPos;
 	// Find best payload
-	for (auto pEntity : m_aPayloads[iTeam - TF_TEAM_RED])
+	auto &vecPayloads = m_aPayloads[iTeam - TF_TEAM_RED];
+	vecPayloads.erase(std::remove_if(vecPayloads.begin(), vecPayloads.end(), [](CBaseEntity *pEnt)
 	{
-		if (pEntity->GetClassID() != ETFClassID::CObjectCartDispenser || pEntity->IsDormant())
+		if (!pEnt || IsBadReadPtr(pEnt, sizeof(void*)))
+			return true;
+
+		return !SDK::IsValidEntity(pEnt);
+	}), vecPayloads.end());
+
+	for (auto *pEntity : vecPayloads)
+	{
+		if (!pEntity || pEntity->GetClassID() != ETFClassID::CObjectCartDispenser || pEntity->IsDormant())
 			continue;
 
-		const auto vOrigin = pEntity->GetAbsOrigin();
-		const auto flDist = vOrigin.DistToSqr(vPos);
+		const Vector vOrigin = pEntity->GetAbsOrigin();
+		const float flDist = vOrigin.DistToSqr(vPos);
 		if (flDist < flBestDist)
 		{
 			vBestPos = vOrigin;

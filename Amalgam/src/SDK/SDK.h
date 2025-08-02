@@ -132,4 +132,9 @@ namespace SDK
 	std::string GetLevelName( );
 	bool IsMvM();
 	bool IsSaxton(CTFPlayer* pPlayer = nullptr);
+
+	inline bool IsValidEntity(CBaseEntity* pEntity)
+	{
+		return pEntity && !pEntity->IsDormant();
+	};
 }

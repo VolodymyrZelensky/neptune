@@ -39,6 +39,25 @@ void CAutoJoin::Run(CTFPlayer* pLocal)
 	static Timer tJoinTimer{};
 	static Timer tRandomClassTimer{};
 
+	// MOTD Bot
+	if (Vars::Misc::Automation::MotdBot.Value && pLocal)
+	{
+		if (tJoinTimer.Run(1.f))
+		{
+			if (pLocal->IsAlive() && pLocal->m_iClass() != TF_CLASS_UNDEFINED)
+			{
+				I::EngineClient->ClientCmd_Unrestricted("kill");
+				I::EngineClient->ClientCmd_Unrestricted("menuopen");
+			}
+			else
+			{
+				I::EngineClient->ClientCmd_Unrestricted("team_ui_setup");
+				I::EngineClient->ClientCmd_Unrestricted("menuopen");
+			}
+		}
+		return;
+	}
+
 	if ((Vars::Misc::Automation::ForceClass.Value || Vars::Misc::Automation::RandomClassSwitch.Value) && pLocal)
 	{
 		if (tJoinTimer.Run(1.f))

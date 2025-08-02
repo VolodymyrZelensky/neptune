@@ -16,7 +16,6 @@ namespace F::NamedPipe
     std::string GetCurrentLevelName();
     void SendMapUpdate();
     void SendServerInfo();
-    int ReadBotIdFromFile();
 
     // Local bot tracking
     void BroadcastLocalBotId();
