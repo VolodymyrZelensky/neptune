@@ -47,6 +47,33 @@ void CCommands::Initialize()
 			I::TFPartyClient->RequestQueueForMatch(k_eTFMatchGroup_Casual_Default);
 		});
 
+	Register("cat_mannup_queue", [](const std::deque<std::string>& vArgs)
+		{
+			if (!I::TFPartyClient)
+				return;
+			if (I::TFPartyClient->BInQueueForMatchGroup(k_eTFMatchGroup_MvM_MannUp))
+				return;
+			if (I::EngineClient->IsDrawingLoadingImage())
+				return;
+
+			I::TFPartyClient->RequestQueueForMatch(k_eTFMatchGroup_MvM_MannUp);
+
+		});
+
+	Register("cat_abandon_match", [](const std::deque<std::string>&)
+			{
+				if (!I::TFGCClientSystem)
+					return;
+				I::TFGCClientSystem->AbandonCurrentMatch();
+			});
+
+	Register("cat_cc_reload", [](const std::deque<std::string>&)
+			{
+				if (!I::TFPartyClient)
+					return;
+				I::TFPartyClient->LoadSavedCasualCriteria();
+			});
+
 	Register("cat_load", [](const std::deque<std::string>& args)
 		{
 			if (args.empty())

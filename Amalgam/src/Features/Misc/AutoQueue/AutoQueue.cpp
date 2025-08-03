@@ -13,6 +13,35 @@ void CAutoQueue::Run()
 	static bool bWasInGame = false;
 	static bool bWasDisconnected = false;
 	
+	// auto q for mvm :white_heart:
+	if (Vars::Misc::Queueing::AutoMannUpQueue.Value)
+	{
+		if (I::TFPartyClient->BInQueueForMatchGroup(k_eTFMatchGroup_MvM_MannUp))
+			return;
+
+		bool bInGame = I::EngineClient->IsInGame();
+		bool bIsLoadingMap = I::EngineClient->IsDrawingLoadingImage();
+
+		if (bIsLoadingMap && Vars::Misc::Queueing::RQLTM.Value)
+			return;
+
+		float flCurrentTime = I::EngineClient->Time();
+		float flQueueDelay = Vars::Misc::Queueing::QueueDelay.Value * 60.0f;
+
+		static float flLastQueueTimeMannUp = 0.0f;
+		static bool bQueuedOnceMannUp = false;
+
+		bool bShouldQueue = !bQueuedOnceMannUp || (flCurrentTime - flLastQueueTimeMannUp >= flQueueDelay);
+
+		if (bShouldQueue && !bInGame && !bIsLoadingMap)
+		{
+			// i have no fucking idea how to set criteria to 2cities only.
+			I::TFPartyClient->RequestQueueForMatch(k_eTFMatchGroup_MvM_MannUp);
+			flLastQueueTimeMannUp = flCurrentTime;
+			bQueuedOnceMannUp = true;
+		}
+	}
+
 	if (Vars::Misc::Queueing::AutoCasualQueue.Value)
 	{
 		if (I::TFPartyClient->BInQueueForMatchGroup(k_eTFMatchGroup_Casual_Default))
@@ -75,10 +104,18 @@ void CAutoQueue::Run()
 			int nPlayersGT = Vars::Misc::Queueing::RQpgt.Value;
 			if ((nPlayersLT > 0 && nPlayerCount < nPlayersLT) || (nPlayersGT > 0 && nPlayerCount > nPlayersGT))
 			{
-				I::TFGCClientSystem->AbandonCurrentMatch();
-				bWasInGame = false;
-				bWasDisconnected = true;
-				flLastQueueTime = 0.0f;
+				if (Vars::Misc::Queueing::RQnoAbandon.Value)
+				{
+					I::TFPartyClient->RequestQueueForMatch(k_eTFMatchGroup_Casual_Default);
+					flLastQueueTime = flCurrentTime;
+				}
+				else
+				{
+					I::TFGCClientSystem->AbandonCurrentMatch();
+					bWasInGame = false;
+					bWasDisconnected = true;
+					flLastQueueTime = 0.0f;
+				}
 			}
 		}
 

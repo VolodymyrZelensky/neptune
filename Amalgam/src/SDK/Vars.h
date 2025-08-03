@@ -1233,6 +1233,7 @@ namespace Vars
 			CVar(RQkick, "Kicked", false);
 			CVar(RQLTM, "dont RQLTM", false);
 			CVar(RQIgnoreFriends, "Ignore Friends", false);
+			CVar(RQnoAbandon, "RQ w/o abandon", false);
 			
 			// Community Server Auto-Queue
 			CVar(AutoCommunityQueue, "Auto community queue", false);
@@ -1245,6 +1246,8 @@ namespace Vars
 			CVar(OnlyNonDedicatedServers, "Only non-dedicated servers", false);
 			CVar(OnlySteamNetworkingIPs, "Only SteamNetworking IPs (169.254.*)", false);
 			CVar(PreferSteamNickServers, "Prefer '*'s Server' format", true);
+			// mvm autoq
+			CVar(AutoMannUpQueue, "Auto MannUp queue", false);
 		SUBNAMESPACE_END(Queueing);
 
 		SUBNAMESPACE_BEGIN(MannVsMachine, Mann vs. Machine)
