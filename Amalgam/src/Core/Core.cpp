@@ -9,6 +9,7 @@
 #include "../Features/Visuals/Visuals.h"
 #include "../SDK/Events/Events.h"
 #include "../Features/Misc/NamedPipe/NamedPipe.h"
+#include "../Features/Networking/Melworking/Melworking.hpp"
 #include "../Utils/Hash/FNV1A.h"
 
 #include <Psapi.h>
@@ -193,6 +194,7 @@ void CCore::Load()
 	U::ConVars.Initialize();
 	F::Commands.Initialize();
 	F::NamedPipe::Initialize();
+	melworking::Client::Init("");
 
 	F::Configs.LoadConfig(F::Configs.m_sCurrentConfig, false);
 	F::Configs.m_bConfigLoaded = true;
@@ -223,4 +225,52 @@ void CCore::Loop()
 #endif 
 		Sleep(15);
 	}
+}
+
+void CCore::Unload()
+{
+	if (m_bFailed)
+	{
+		LogFailText();
+		return;
+	}
+
+	G::Unload = true;
+	m_bFailed2 = !U::Hooks.Unload() || m_bFailed2;
+	U::BytePatches.Unload();
+	H::Events.Unload();
+
+	if (F::Menu.m_bIsOpen)
+		I::MatSystemSurface->SetCursorAlwaysVisible(false);
+	F::Visuals.RestoreWorldModulation();
+	if (I::Input->CAM_IsThirdPerson())
+	{
+		if (auto pLocal = H::Entities.GetLocal())
+		{
+			I::Input->CAM_ToFirstPerson();
+			pLocal->ThirdPersonSwitch();
+		}
+	}
+	U::ConVars.FindVar("cl_wpn_sway_interp")->SetValue(0.f);
+	U::ConVars.FindVar("cl_wpn_sway_scale")->SetValue(0.f);
+
+	Sleep(250);
+	F::NamedPipe::Shutdown();
+	U::ConVars.Unload();
+	F::Materials.UnloadMaterials();
+
+	if (m_bFailed2)
+	{
+		LogFailText();
+		return;
+	}
+
+	std::vector<const char*> unloadedMessages = { "FUCK YOU *nword*.", "KYS", "BARK BARK", "???" };
+	std::random_device rdUnload;
+	std::mt19937 genUnload(rdUnload());
+	std::uniform_int_distribution<> distribUnload(0, static_cast<int>(unloadedMessages.size()) - 1);
+	const char* randomUnloadedMessage = unloadedMessages[distribUnload(genUnload)];
+	I::EngineClient->ClientCmd_Unrestricted(std::format("tf_party_chat \"{}\"", randomUnloadedMessage).c_str());
+	I::EngineClient->ClientCmd_Unrestricted(std::format("play shivermetimbers/shivermetimbers.mp3").c_str());
+	SDK::Output("Amalgam", "Unloaded", { 175, 150, 255 }, true, true);
 }

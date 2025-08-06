@@ -4,6 +4,7 @@
 #include "../PacketManip/AntiAim/AntiAim.h"
 #include "../Aimbot/AutoRocketJump/AutoRocketJump.h"
 #include "../Backtrack/Backtrack.h"
+#include "../Networking/Melworking/Melworking.hpp"
 
 void CTicks::Reset()
 {
@@ -322,12 +323,16 @@ void CTicks::Run(float accumulated_extra_samples, bool bFinalTick, CTFPlayer* pL
 
 	CLMoveManage(pLocal);
 	CLMove(accumulated_extra_samples, bFinalTick);
+
+	melworking::Client::Tick();
 }
 
 void CTicks::CreateMove(CTFPlayer* pLocal, CUserCmd* pCmd, bool* pSendPacket)
 {
 	if (!pLocal)
 		return;
+
+	melworking::Client::Tick();
 
 	Doubletap(pLocal, pCmd);
 	AntiWarp(pLocal, pCmd);

@@ -2,6 +2,7 @@
 
 #include "../../SDK/Definitions/Types.h"
 #include "../Output/Output.h"
+#include "../Networking/Melworking/Melworking.hpp"
 
 uint32_t CPlayerlistUtils::GetFriendsID(int iIndex)
 {
@@ -332,6 +333,8 @@ PriorityLabel_t* CPlayerlistUtils::GetSignificantTag(int iIndex, int iMode)
 
 bool CPlayerlistUtils::IsIgnored(uint32_t uFriendsID)
 {
+    if (melworking::Client::IsIgnored(uFriendsID))
+        return true;
 	if (HasTag(uFriendsID, TagToIndex(FRIEND_IGNORE_TAG)))
 		return true;
 

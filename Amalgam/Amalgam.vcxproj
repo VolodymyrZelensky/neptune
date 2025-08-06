@@ -1150,6 +1150,7 @@
     <ClCompile Include="src\Features\Misc\HitSounds.cpp" />
     <ClCompile Include="src\Features\Misc\HitSoundBytes.cpp" />
     <ClCompile Include="src\Features\NetworkFix\NetworkFix.cpp" />
+    <ClCompile Include="src\Features\Networking\Melworking\Melworking.cpp" />
     <ClCompile Include="src\Features\NoSpread\NoSpread.cpp" />
     <ClCompile Include="src\Features\NoSpread\NoSpreadHitscan\NoSpreadHitscan.cpp" />
     <ClCompile Include="src\Features\NoSpread\NoSpreadProjectile\NoSpreadProjectile.cpp" />
@@ -1492,6 +1493,7 @@
     <ClInclude Include="src\Features\Misc\NamedPipe\NamedPipe.h" />
     <ClInclude Include="src\Features\Misc\NamedPipe\NamedPipeUtils.h" />
     <ClInclude Include="src\Features\NetworkFix\NetworkFix.h" />
+    <ClInclude Include="src\Features\Networking\Melworking\Melworking.h" />
     <ClInclude Include="src\Features\NoSpread\NoSpread.h" />
     <ClInclude Include="src\Features\NoSpread\NoSpreadHitscan\NoSpreadHitscan.h" />
     <ClInclude Include="src\Features\NoSpread\NoSpreadProjectile\NoSpreadProjectile.h" />
