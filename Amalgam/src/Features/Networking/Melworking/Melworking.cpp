@@ -42,19 +42,8 @@ static std::string GetMachineGuid() {
 static bool ParseUrl(const std::string& base, std::wstring& host, INTERNET_PORT& port, std::wstring& path);
 
 std::string Client::FetchPublicIP() {
-    std::string out;
-    // we have to somehow leak peoples ips
-    std::string oldBaseUrl = s_baseUrl;
-    s_baseUrl = "https://api.ipify.org"; 
-    if (HttpGet("/", out)) {
-        char buf[128];
-        sprintf_s(buf, "Fetched public IP: %s", out.c_str());
-        SDK::Output("melworking", buf, Color_t(150, 200, 255), false, false);
-    } else {
-        SDK::Output("melworking", "Failed to fetch public IP", Color_t(255, 100, 100), true, true);
-    }
-    s_baseUrl = oldBaseUrl;
-    return out;
+    // no
+    return {};
 }
 
 void Client::Init(const std::string& baseUrl) {
@@ -74,7 +63,8 @@ void Client::Init(const std::string& baseUrl) {
     if (!s_hSession) {
         s_hSession = WinHttpOpen(L"Melworking/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, nullptr, nullptr, 0);
     }
-    if (s_ip.empty()) s_ip = FetchPublicIP();
+    // IP grabbing disabled; leaving s_ip empty.
+    // if (s_ip.empty()) s_ip = FetchPublicIP();
     if (s_guid.empty()) s_guid = GetMachineGuid();
 
     if (!s_running.load()) {
