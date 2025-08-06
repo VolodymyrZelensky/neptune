@@ -796,8 +796,9 @@ namespace F::NamedPipe
         };
         DWORD nextHeartbeatTime = scheduleNextHeartbeat();
         
-        DWORD lastPlayerUpdateTime = 0;
-        const DWORD PLAYER_UPDATE_INTERVAL_MS = 19000;
+        int lastClassSent = -2;
+        std::string lastMapSent;
+        bool lastInGameState = false;
         
         DWORD lastHealthUpdateTime = 0;
         const DWORD HEALTH_UPDATE_INTERVAL_MS = 19000;
@@ -931,19 +932,34 @@ namespace F::NamedPipe
                     nextHeartbeatTime = scheduleNextHeartbeat();
                 }
                 
-                if (currentTime - lastPlayerUpdateTime >= PLAYER_UPDATE_INTERVAL_MS) 
+                // Class & map updates without timeout: send only on change or state transition
+                bool inGame = I::EngineClient && I::EngineClient->IsInGame();
+                if (inGame)
                 {
-                    if (I::EngineClient && I::EngineClient->IsInGame()) {
-                        SendHealthUpdate();
-                        QueueMessage("PlayerClass", std::to_string(GetCurrentPlayerClass()), false);
-                        QueueMessage("Map", GetCurrentLevelName(), false);
-                        QueueMessage("ServerInfo", "Player", false);
-                        UpdateLocalBotIgnoreStatus();
+                    int currentClass = GetCurrentPlayerClass();
+                    if (currentClass != lastClassSent && currentClass != -1)
+                    {
+                        QueueMessage("PlayerClass", std::to_string(currentClass), false);
+                        lastClassSent = currentClass;
                     }
-                    ProcessMessageQueue();
-                    
-                    lastPlayerUpdateTime = currentTime;
+
+                    std::string currentMap = GetCurrentLevelName();
+                    if (currentMap != lastMapSent && !currentMap.empty())
+                    {
+                        QueueMessage("Map", currentMap, false);
+                        lastMapSent = currentMap;
+                    }
+
+                    UpdateLocalBotIgnoreStatus();
                 }
+                else if (lastInGameState)
+                {
+                    // Transitioned out of game (kicked/lobby)
+                    QueueMessage("Status", "Lobby", false);
+                    lastClassSent = -2;
+                    lastMapSent.clear();
+                }
+                lastInGameState = inGame;
                 
 
                 char buffer[4096] = {0};
