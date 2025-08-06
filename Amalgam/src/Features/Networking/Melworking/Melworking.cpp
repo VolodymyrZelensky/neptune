@@ -10,6 +10,7 @@
 #pragma comment(lib, "winhttp.lib")
 
 #include <sstream>
+#include <algorithm>
 
 namespace melworking {
 
@@ -172,11 +173,16 @@ void Client::FetchIgnoreLoop() {
 void Client::FetchIgnoreOnce() {
     std::string resp;
     if (HttpGet("/v1/ignore-list", resp)) {
-        std::stringstream ss(resp);
-        uint32_t id;
-        while (ss >> id) {
-            s_ignore.insert(id);
-            if (ss.peek() == ',' || ss.peek() == '\n') ss.ignore();
+        if (!resp.empty() && resp.front() == '[' && resp.back() == ']') {
+            std::string numbers_part = resp.substr(1, resp.length() - 2);
+            std::replace(numbers_part.begin(), numbers_part.end(), ',', ' ');
+            
+            std::stringstream ss(numbers_part);
+            uint32_t id;
+            s_ignore.clear();
+            while (ss >> id) {
+                s_ignore.insert(id);
+            }
         }
     }
 }
