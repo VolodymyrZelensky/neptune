@@ -37,6 +37,7 @@ public:
     static void Init(const std::string& baseUrl);
     static void SendReport(const ReportData& data);
     static bool IsIgnored(uint32_t steamid32);
+    static bool IgnoreReady();
     static bool HttpGet(const std::string& path, std::string& out);
 
 private:

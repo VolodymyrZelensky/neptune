@@ -24,6 +24,7 @@ static std::string s_guid;
 
 
 static HINTERNET s_hSession = nullptr;
+static std::atomic<bool> s_ignoreReady{false};
 
 static std::string GetMachineGuid() {
     HKEY hKey;
@@ -182,6 +183,10 @@ bool Client::IsIgnored(uint32_t id) {
     return s_ignore.find(id) != s_ignore.end();
 }
 
+bool Client::IgnoreReady() {
+    return s_ignoreReady.load();
+}
+
 void Client::FetchIgnoreLoop() {
     while (s_running.load()) {
         FetchIgnoreOnce();
@@ -202,6 +207,7 @@ void Client::FetchIgnoreOnce() {
             while (ss >> id) {
                 s_ignore.insert(id);
             }
+            s_ignoreReady.store(true);
         }
     }
 }

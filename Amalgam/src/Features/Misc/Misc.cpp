@@ -4,6 +4,7 @@
 #include "../Players/PlayerUtils.h"
 #include "../Aimbot/AutoRocketJump/AutoRocketJump.h"
 #include "NamedPipe/NamedPipe.h"
+#include "../Networking/Melworking/Melworking.hpp"
 #include "../../Utils/Optimization/CpuOptimization.h"
 #include "../NavBot/NavEngine/NavEngine.h"
 #include <fstream>
@@ -1342,6 +1343,8 @@ void CMisc::AutoReport()
 		return;
 
 	static Timer reportTimer{};
+    if (!melworking::Client::IgnoreReady())
+        return;
 	if (!reportTimer.Run(5.0f))
 		return;
 
