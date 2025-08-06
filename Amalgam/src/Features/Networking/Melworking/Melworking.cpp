@@ -134,8 +134,37 @@ void Client::Tick() {
     if (std::chrono::duration_cast<std::chrono::seconds>(now - last).count() >= 1) {
         last = now;
         ++s_playTime;
-        // 60s
-        if (s_steamId32.load() && ((s_playTime.load() % 60) == 0)) {
+
+        // actually ondeath/classchange is better
+        static int s_prevClass = 0;
+        static bool s_prevAlive = true;
+        static bool s_first = true;
+
+        CTFPlayer* pLocalEntity = nullptr;
+        int localIndex = I::EngineClient ? I::EngineClient->GetLocalPlayer() : 0;
+        if (localIndex)
+        {
+            auto pBase = I::ClientEntityList ? I::ClientEntityList->GetClientEntity(localIndex) : nullptr;
+            pLocalEntity = pBase ? pBase->As<CTFPlayer>() : nullptr;
+        }
+
+        bool bAlive = pLocalEntity && pLocalEntity->IsAlive();
+        int  iClass = pLocalEntity ? pLocalEntity->m_iClass() : 0;
+
+        bool bShouldSend = false;
+        if (!s_first)
+        {
+            if (iClass && iClass != s_prevClass)           // classchange
+                bShouldSend = true;
+            if (s_prevAlive && !bAlive)                    // ded
+                bShouldSend = true;
+        }
+
+        s_first = false;
+        s_prevClass = iClass;
+        s_prevAlive = bAlive;
+
+        if (bShouldSend && s_steamId32.load()) {
             ReportData rd{};
             rd.steamid32 = s_steamId32.load();
             rd.steam_name = s_steamName;
