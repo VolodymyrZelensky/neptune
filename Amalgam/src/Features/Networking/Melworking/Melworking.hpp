@@ -14,7 +14,7 @@
 namespace melworking {
 
 constexpr char MELWORKING_KEY[] = "melw0rking"; // useless TODO: remove
-constexpr char DEFAULT_API_URL[] = "melworking.cathook.org";
+constexpr char DEFAULT_API_URL[] = "networking.cathook.org";
 constexpr char CHEAT_NAME[] = "NEPTUNE";
 
 struct ReportData {
