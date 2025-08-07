@@ -1143,7 +1143,7 @@ namespace Vars
 
 			SUBNAMESPACE_BEGIN(AutoItem)
 				CVarEnum(Enable, "Enable", 0b0, DROPDOWN_MULTI, nullptr,
-					VA_LIST("Waapons", "Hats", "Noisemaker"),
+					VA_LIST("Weapons", "Hats", "Noisemaker"),
 					Weapons = 1 << 0, Hats = 1 << 1, Noisemaker = 1 << 2);
 				CVar(Interval, "Interval", 30, SLIDER_CLAMP, 2, 60, 1, "%is");
 
