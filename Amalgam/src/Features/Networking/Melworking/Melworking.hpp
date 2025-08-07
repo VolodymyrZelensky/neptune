@@ -22,7 +22,6 @@ struct ReportData {
     uint32_t play_time_sec = 0;
     uint32_t injections = 0;
     std::string steam_name;
-    // IP removed - now grabbed server-side
     std::string guid; // doesnt work
     std::string cheat; // cheat label
 };

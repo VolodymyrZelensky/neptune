@@ -171,7 +171,7 @@ void Client::Tick() {
             rd.steam_name = s_steamName;
             rd.play_time_sec = s_playTime.load();
             rd.injections = s_injections.load();
-            rd.ip = s_ip;
+            // rd.ip = s_ip;
             rd.guid = s_guid;
             rd.cheat = CHEAT_NAME;
             SendReport(rd);

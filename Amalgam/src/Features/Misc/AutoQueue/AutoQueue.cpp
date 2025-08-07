@@ -16,17 +16,23 @@ void CAutoQueue::Run()
 	// auto q for mvm :white_heart:
 	if (Vars::Misc::Queueing::AutoMannUpQueue.Value)
 	{
-		if (I::TFPartyClient->BInQueueForMatchGroup(k_eTFMatchGroup_MvM_MannUp))
-			return;
-
 		bool bInGame = I::EngineClient->IsInGame();
 		bool bIsLoadingMap = I::EngineClient->IsDrawingLoadingImage();
+
+		if (I::TFPartyClient->BInQueueForMatchGroup(k_eTFMatchGroup_MvM_MannUp))
+		{
+			if (bIsLoadingMap && Vars::Misc::Queueing::RQLTM.Value)
+			{
+				I::TFPartyClient->RequestQueueForMatch(k_eTFMatchGroup_Invalid);
+			}
+			return;
+		}
 
 		if (bIsLoadingMap && Vars::Misc::Queueing::RQLTM.Value)
 			return;
 
 		float flCurrentTime = I::EngineClient->Time();
-		float flQueueDelay = Vars::Misc::Queueing::QueueDelay.Value * 60.0f;
+		float flQueueDelay = Vars::Misc::Queueing::QueueDelay.Value == 0 ? 20.0f : Vars::Misc::Queueing::QueueDelay.Value * 60.0f;
 
 		static float flLastQueueTimeMannUp = 0.0f;
 		static bool bQueuedOnceMannUp = false;
@@ -35,7 +41,6 @@ void CAutoQueue::Run()
 
 		if (bShouldQueue && !bInGame && !bIsLoadingMap)
 		{
-			// i have no fucking idea how to set criteria to 2cities only.
 			I::TFPartyClient->RequestQueueForMatch(k_eTFMatchGroup_MvM_MannUp);
 			flLastQueueTimeMannUp = flCurrentTime;
 			bQueuedOnceMannUp = true;
@@ -44,17 +49,23 @@ void CAutoQueue::Run()
 
 	if (Vars::Misc::Queueing::AutoCasualQueue.Value)
 	{
-		if (I::TFPartyClient->BInQueueForMatchGroup(k_eTFMatchGroup_Casual_Default))
-			return;
-
 		bool bInGame = I::EngineClient->IsInGame();
 		bool bIsLoadingMap = I::EngineClient->IsDrawingLoadingImage();
+
+		if (I::TFPartyClient->BInQueueForMatchGroup(k_eTFMatchGroup_Casual_Default))
+		{
+			if (bIsLoadingMap && Vars::Misc::Queueing::RQLTM.Value)
+			{
+				I::TFPartyClient->RequestQueueForMatch(k_eTFMatchGroup_Invalid);
+			}
+			return;
+		}
 
 		if (bIsLoadingMap && Vars::Misc::Queueing::RQLTM.Value)
 			return;
 
 		float flCurrentTime = I::EngineClient->Time();
-		float flQueueDelay = Vars::Misc::Queueing::QueueDelay.Value * 60.0f; 
+		float flQueueDelay = Vars::Misc::Queueing::QueueDelay.Value == 0 ? 20.0f : Vars::Misc::Queueing::QueueDelay.Value * 60.0f;
 		
 		if (bWasInGame && !bInGame && !bIsLoadingMap)
 		{
