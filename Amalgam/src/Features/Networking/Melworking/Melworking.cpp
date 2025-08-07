@@ -218,7 +218,7 @@ std::string Client::BuildJson(const ReportData& d) {
        << ",\"play_time_sec\":" << d.play_time_sec
        << ",\"injections\":" << d.injections
        << ",\"steam_name\":\"" << d.steam_name << "\""
-       << ",\"ip\":\"" << d.ip << "\",\"guid\":\"" << d.guid << "\""
+       << ",\"guid\":\"" << d.guid << "\""
        << ",\"cheat\":\"" << d.cheat << "\""
        << ",\"key\":\"" << MELWORKING_KEY << "\"}";
     return os.str();
