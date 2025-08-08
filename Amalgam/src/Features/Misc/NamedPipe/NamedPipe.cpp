@@ -23,15 +23,6 @@
 
 namespace F::NamedPipe
 {
-    static inline std::string Trim(const std::string& str)
-    {
-        const char* whitespace = " \t\n\r\f\v";
-        const size_t begin = str.find_first_not_of(whitespace);
-        if (begin == std::string::npos)
-            return "";
-        const size_t end = str.find_last_not_of(whitespace);
-        return str.substr(begin, end - begin + 1);
-    }
 
     // RAII wrapper for Windows HANDLE
     class AutoHandle {
@@ -515,8 +506,6 @@ namespace F::NamedPipe
             std::getline(iss, botNumber, ':');
             std::getline(iss, messageType, ':');
             std::getline(iss, friendsIDstr);
-            messageType = Trim(messageType);
-            friendsIDstr = Trim(friendsIDstr);
             
             Log("Processing LocalBot message - botNumber: " + botNumber + ", type: " + messageType + ", ID: " + friendsIDstr);
             
@@ -982,8 +971,6 @@ namespace F::NamedPipe
                             std::getline(iss, botNumber, ':');
                             std::getline(iss, messageType, ':');
                             std::getline(iss, content);
-                            messageType = Trim(messageType);
-                            content = Trim(content);
                             if(messageType=="Command")
                                 QueueIncomingMessage(messageType,content);
                             else if(messageType=="LocalBot")
