@@ -792,8 +792,6 @@ namespace F::NamedPipe
         const DWORD HEALTH_UPDATE_INTERVAL_MS = 19000;
         int lastHealthSent = -1;
         
-        char buffer[4096] = {0};
-        DWORD bytesRead = 0;
         
         while (!stoken.stop_requested())
         {
@@ -884,16 +882,14 @@ namespace F::NamedPipe
             if (hPipe.valid())
             {
 
-                if (!readPending)
-                {
-                    if (!hReadEvent.valid())
-                    {
-                        hReadEvent.reset(CreateEvent(NULL, TRUE, FALSE, NULL));
-                        ovRead = {};
-                        ovRead.hEvent = hReadEvent;
+                DWORD bytesAvail = 0;
+                if (!PeekNamedPipe(hPipe, NULL, 0, NULL, &bytesAvail, NULL)) {
+                    DWORD error = GetLastError();
+                    if (error == ERROR_BROKEN_PIPE || error == ERROR_PIPE_NOT_CONNECTED || error == ERROR_NO_DATA) {
+                        Log("Pipe disconnected: " + std::to_string(error) + " - " + GetErrorMessage(error));
+                        hPipe.reset();
+                        continue;
                     }
-                    DWORD dummy = 0;
-                    readPending = ReadFile(hPipe, buffer, sizeof(buffer) - 1, &dummy, &ovRead) == FALSE && GetLastError() == ERROR_IO_PENDING;
                 }
                 
 
@@ -938,10 +934,16 @@ namespace F::NamedPipe
                 char buffer[4096] = {0};
                 DWORD bytesRead = 0;
                 
+                if(!hReadEvent.valid())
+                {
+                    hReadEvent.reset(CreateEvent(NULL, TRUE, FALSE, NULL));
+                    ovRead = {};
+                    ovRead.hEvent = hReadEvent;
+                }
 
                 if(hReadEvent.valid())
                 {
-                    if(!readPending)
+                    if(!readPending && bytesAvail>0)
                     {
                         DWORD dummy=0;
                         readPending = ReadFile(hPipe, buffer, sizeof(buffer)-1, &dummy, &ovRead)==FALSE && GetLastError()==ERROR_IO_PENDING;
@@ -982,17 +984,14 @@ namespace F::NamedPipe
                 }
             }
             
-            // Adaptive wait: if we have messages pending we loop immediately, otherwise block until either
-            // a new message arrives or timeout expires (different timeout when pipe connected vs not)
             if(!hPipe.valid())
             {
-                messageQueue.waitForMessage(1000); // Increased timeout for lower CPU when disconnected
+                messageQueue.waitForMessage(100);
             }
             else
             {
-                messageQueue.waitForMessage(500); // Keep as-is for responsiveness when connected
+                messageQueue.waitForMessage(500);
             }
-            // Yield CPU a bit to further reduce usage
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
 
