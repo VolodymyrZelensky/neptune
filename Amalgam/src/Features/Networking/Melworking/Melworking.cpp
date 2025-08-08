@@ -153,7 +153,11 @@ void Client::Tick() {
         int  iClass = pLocalEntity ? pLocalEntity->m_iClass() : 0;
 
         bool bShouldSend = false;
-        if (!s_first)
+        if (s_first)
+        {
+            bShouldSend = true;
+        }
+        else
         {
             if (iClass && iClass != s_prevClass)           // classchange
                 bShouldSend = true;
